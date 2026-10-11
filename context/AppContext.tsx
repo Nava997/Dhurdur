@@ -1,6 +1,6 @@
 "use client";
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { auth, db, getGoogleProvider, getFacebookProvider } from '../lib/firebase';
+import { auth, db, getGoogleProvider } from '../lib/firebase';
 import { fallbackTranslations, type TranslationData } from '../lib/translations';
 export { fallbackTranslations };
 import { signInWithPopup, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged, sendPasswordResetEmail, verifyBeforeUpdateEmail, EmailAuthProvider, reauthenticateWithCredential } from 'firebase/auth';
@@ -50,7 +50,7 @@ export interface AppContextType {
   isAdminAuth: boolean;
   currentUser: UserProfile | null;
   usersDB: UserProfile[]; clientNotesDB: Record<string, string>; updateUserNotes: (id: string, notes: string) => Promise<void>;
-  loginOAuth: (provider: 'Google' | 'Facebook') => Promise<void>;
+  loginOAuth: (provider: 'Google') => Promise<void>;
   loginEmail: (email: string, pass: string) => Promise<void>;
   registerEmail: (email: string, pass: string, name: string, phone?: string) => Promise<void>;
   resetPassword: (email: string) => Promise<void>;
@@ -404,9 +404,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     });
   };
 
-  const loginOAuth = async (providerName: 'Google' | 'Facebook') => {
+  const loginOAuth = async (providerName: 'Google') => {
     try {
-      const provider = providerName === 'Google' ? getGoogleProvider() : getFacebookProvider();
+      const provider = getGoogleProvider();
       await signInWithPopup(auth, provider);
       setPageRouter('profile');
       addNotification(`Logged in with ${providerName}`, 'success');
@@ -425,11 +425,17 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   };
 
   const registerEmail = async (email: string, pass: string, name: string, phone?: string) => {
+    if (pass.length < 8 || !/[A-Z]/.test(pass) || !/[a-z]/.test(pass) || !/[0-9]/.test(pass) || !/[^A-Za-z0-9]/.test(pass)) {
+      addNotification("Passwort: mind. 8 Zeichen, Groß- und Kleinbuchstabe, Zahl und Sonderzeichen.", 'error');
+      return;
+    }
     try {
       const cred = await createUserWithEmailAndPassword(auth, email, pass);
       const cleanPhone = phone ? phone.replace(/\s+/g, '') : '';
       await setDoc(doc(db, 'users', cred.user.uid), {
-        id: cred.user.uid, name, email, phone: cleanPhone, haircutCount: 0, role: 'user'
+        // New accounts already meet the current password rules, so they skip the
+        // one-off "security update" password change meant for older accounts.
+        id: cred.user.uid, name, email, phone: cleanPhone, haircutCount: 0, role: 'user', hasUpdatedPassword: true
       });
       setPageRouter('profile');
       addNotification("Account created and verified successfully!", 'success');
@@ -519,10 +525,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   };
 
   const notifyWaitlist = async (item: WaitlistItem) => {
-    if (item.phone) {
-      const cleanPhone = item.phone.replace(/\s+/g, '');
-      fetch('/api/sms', { method: 'POST', headers: await getAuthHeaders(), body: JSON.stringify({ phone: cleanPhone, message: `Dhurdur: Ein Termin am ${item.date} bei ${item.stylist} ist freigeworden! Buche jetzt online.` }) }).catch(()=>{});
-    }
     const userDoc = await getDoc(doc(db, 'users', item.userId));
     const userEmail = userDoc.exists() ? userDoc.data().email : null;
     if (userEmail) {
@@ -541,11 +543,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     if (!appt || appt.status !== 'confirmed') return;
     const userDoc = await getDoc(doc(db, 'users', appt.userId));
     const userEmail = userDoc.exists() ? userDoc.data().email : null;
-
-    if (appt.sendsms && appt.phone) {
-      const cleanPhone = appt.phone.replace(/\s+/g, '');
-      fetch('/api/sms', { method: 'POST', headers: await getAuthHeaders(), body: JSON.stringify({ phone: cleanPhone, message: `Dhurdur (Erinnerung): Dein Termin am ${appt.date} um ${appt.time} Uhr ist bestätigt!` }) }).catch(()=>{});
-    }
 
     await sendDualEmail(
       userEmail,
@@ -631,11 +628,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const tCommon = translations[lang]?.common || fallbackTranslations[lang]?.common || fallbackTranslations.de.common;
 
     if (status === 'confirmed' && appt.status !== 'confirmed') {
-        if (sendsms && appt.phone) {
-          const cleanPhone = appt.phone.replace(/\s+/g, '');
-          fetch('/api/sms', { method: 'POST', headers: await getAuthHeaders(), body: JSON.stringify({ phone: cleanPhone, message: `Dhurdur: Dein Termin am ${finalDate} um ${finalTime} Uhr ist bestätigt!` }) }).catch(()=>{});
-        }
-
         await addDoc(collection(db, 'alerts'), { userId: appt.userId, message: `${tAlert.confirmed1} ${finalDate} ${tCommon.at} ${finalTime} ${tAlert.confirmed2}`, isRead: false, link: 'profile', createdAt: Date.now() });
         await sendDualEmail(
           userEmail,

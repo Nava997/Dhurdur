@@ -119,12 +119,6 @@ export async function POST(req: NextRequest) {
 
   try {
     // Changing the UI language is a public action: guests must be able to trigger this.
-    if (!DEEPL_API_KEY) {
-      const auditLog = createAuditLog(req, userId, undefined, 'translate_ui', undefined, 'translation_cache', false, 'DeepL API key not configured');
-      logAudit(auditLog);
-      return NextResponse.json({ error: 'Translation service not configured' }, { status: 503 });
-    }
-
     const body = await req.json().catch(() => null);
     const validation = validateRequest(translateUiRequestSchema, body);
     if (!validation.success) {
@@ -140,6 +134,12 @@ export async function POST(req: NextRequest) {
     const deeplLang = LANG_CODE_MAP[targetLang];
     if (!deeplLang) {
       return NextResponse.json({ error: `Language "${targetLang}" is not supported` }, { status: 400 });
+    }
+
+    if (!DEEPL_API_KEY) {
+      const auditLog = createAuditLog(req, userId, undefined, 'translate_ui', undefined, 'translation_cache', false, 'DeepL API key not configured');
+      logAudit(auditLog);
+      return NextResponse.json({ error: 'Translation service not configured' }, { status: 503 });
     }
 
     // SECURITY: the source text always comes from the server (the built-in

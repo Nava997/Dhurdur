@@ -103,7 +103,7 @@ export default function PrivacyPolicy() {
           </p>
           <p>
             Registrierung: Name, E-Mail, Telefon, Passwort-Hash.
-            Verifizierung per E-Mail (Firebase). Social Login via Google/Facebook möglich.
+            Verifizierung per E-Mail (Firebase). Social Login via Google möglich.
             Rechtsgrundlage: Art. 6 Abs. 1 lit. b DSGVO.
           </p>
         </Section>
@@ -129,7 +129,7 @@ export default function PrivacyPolicy() {
         <Section title="7. Firebase / Google / DeepL">
           <p>
             Authentifizierung via Firebase Authentication (Google Ireland Ltd., EU).
-            Social Login via Google/Facebook (Meta Platforms Ireland Ltd., EU).
+            Social Login via Google (Google Ireland Ltd., EU).
             UI-Übersetzung via DeepL SE (Deutschland, EU).
             Keine personenbezogenen Daten an DeepL.
           </p>
@@ -138,7 +138,6 @@ export default function PrivacyPolicy() {
         <Section title="8. Auftragsverarbeiter">
           <ul className="list-disc list-inside space-y-1">
             <li><strong>Google Cloud / Firebase</strong> (Auth, Firestore, Storage, Analytics) — EU (europe-west1/3), AVV ✅, SCC ✅</li>
-            <li><strong>Twilio</strong> (SMS) — USA, AVV ✅, SCC ✅</li>
             <li><strong>Google (Gmail/Workspace)</strong> (Transaktions-E-Mails) — EU/USA, AVV ✅, SCC ✅</li>
             <li><strong>DeepL SE</strong> (Übersetzung) — Deutschland, EU, AVV ✅, DSGVO direkt</li>
             <li><strong>Vercel</strong> (Hosting) — USA mit EU Edge, AVV ✅, SCC ✅</li>
@@ -178,11 +177,11 @@ export default function PrivacyPolicy() {
           <ul className="list-disc list-inside space-y-1">
             <li>Transportverschlüsselung: TLS 1.2+ (HTTPS, HSTS)</li>
             <li>Speicherverschlüsselung: Firebase/Firestore AES-256 at rest</li>
-            <li>Zugriffskontrolle: Rollenbasiert (User/Admin), Firebase Custom Claims, MFA für Admin</li>
-            <li>Passwortsicherheit: bcrypt (Firebase), Breach-Check (HIBP), Mindestlänge 8</li>
-            <li>Rate Limiting: API-Routen mit Zod-Validierung, In-Memory Rate Limiting</li>
+            <li>Zugriffskontrolle: Rollenbasiert (Kunde/Admin) über Firestore-Sicherheitsregeln; Admin-Zugang nur mit verifizierter E-Mail-Adresse</li>
+            <li>Passwortsicherheit: gehashte Speicherung (Firebase Authentication), mind. 8 Zeichen mit Groß- und Kleinbuchstaben, Zahl und Sonderzeichen; Passwortänderung nur mit E-Mail-Bestätigungscode</li>
+            <li>Rate Limiting: API-Routen mit Eingabevalidierung (Zod) und serverseitigem Rate Limiting</li>
             <li>Sicherheits-Headers: CSP, HSTS, X-Frame-Options, Referrer-Policy, Permissions-Policy</li>
-            <li>Audit-Logging: Alle Admin-Aktionen & API-Zugriffe</li>
+            <li>Audit-Logging: Protokollierung sicherheitsrelevanter Server-Aktionen (E-Mail-Versand, Passwortänderung, Kontolöschung)</li>
             <li>Notfallplan: Incident-Response-Prozess (72h-Meldepflicht Art. 33 DSGVO)</li>
             <li>EXIF-Entfernung bei Bild-Uploads</li>
           </ul>
@@ -209,8 +208,8 @@ export default function PrivacyPolicy() {
             </tbody>
           </table>
           <p className="text-sm">
-            Automatische Löschung via Firestore TTL-Indizes: alerts (30 Tage), appointments (3 Jahre),
-            waitlist (6 Monate), consentLogs (3 Jahre).
+            Automatische Löschung durch einen täglichen Bereinigungsjob: Benachrichtigungen (30 Tage), Termine inkl. Referenzbilder (3 Jahre),
+            Warteliste (6 Monate), Einwilligungsnachweise (3 Jahre).
           </p>
         </Section>
 

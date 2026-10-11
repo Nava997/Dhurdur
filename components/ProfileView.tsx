@@ -111,8 +111,11 @@ export function ProfileView() {
   const passLabel = passScore <= 2 ? (authTrans.weak || 'Schwach') : passScore <= 4 ? (authTrans.medium || 'Mittel') : (authTrans.strong || 'Stark');
 
   const userAppts = appointments.filter((a: Appointment) => a.userId === currentUser.id).sort((a: Appointment, b: Appointment) => new Date(b.date).getTime() - new Date(a.date).getTime());
-  const upcoming = userAppts.filter((a: Appointment) => a.status === 'pending' || a.status === 'proposed');
-  const past = userAppts.filter((a: Appointment) => a.status === 'confirmed');
+  // Confirmed appointments still ahead belong under "upcoming", not in the visit history.
+  const now = new Date();
+  const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+  const upcoming = userAppts.filter((a: Appointment) => a.status === 'pending' || a.status === 'proposed' || (a.status === 'confirmed' && a.date >= todayStr));
+  const past = userAppts.filter((a: Appointment) => a.status === 'confirmed' && a.date < todayStr);
 
   return (
     <div className="min-h-screen pt-28 md:pt-32 px-4 md:px-6 max-w-4xl mx-auto animate-in fade-in duration-500 pb-20 relative">
@@ -286,6 +289,8 @@ export function ProfileView() {
                             <button onClick={() => updateAppointmentStatus(a.id, 'cancelled', false)} className="border border-red-500/50 text-red-400 hover:bg-red-500/10 px-3 py-1.5 text-xs font-bold uppercase ">{t.profile?.cancel || "Stornieren"}</button>
                           </div>
                         </div>
+                      ) : a.status === 'confirmed' ? (
+                        <span className="text-[10px] uppercase bg-green-600/20 text-green-400 border border-green-600 px-3 py-1 ">{t.admin?.dash?.confirmedSuffix || "Bestätigt"}</span>
                       ) : (
                         <span className="text-[10px] uppercase bg-yellow-600/20 text-yellow-400 border border-yellow-600 px-3 py-1 ">{t.profile?.pending || "Ausstehend"}</span>
                       )}

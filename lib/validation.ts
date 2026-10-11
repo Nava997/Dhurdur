@@ -10,17 +10,6 @@ const e164PhoneRegex = /^\+[1-9]\d{1,14}$/;
 const sanitizeString = (maxLength: number) => z.string().min(1).max(maxLength).transform(s => s.trim());
 const emailSchema = z.string().email().max(254).toLowerCase().transform(s => s.trim());
 
-// SMS API validation
-export const smsRequestSchema = z.object({
-  phone: z.string()
-    .regex(e164PhoneRegex, 'Phone number must be in E.164 format (e.g., +4917612345678)')
-    .min(10)
-    .max(15),
-  message: z.string().min(1).max(1600).transform(s => s.trim()),
-});
-
-export type SmsRequest = z.infer<typeof smsRequestSchema>;
-
 // Email API validation
 export const emailRequestSchema = z.object({
   email: emailSchema,

@@ -10,7 +10,6 @@ const rateLimitStore = new Map<string, RateLimitEntry>();
 
 // Configuration per endpoint
 const RATE_LIMIT_CONFIG: Record<string, { windowMs: number; maxRequests: number }> = {
-  '/api/sms': { windowMs: 60 * 1000, maxRequests: 5 },        // 5 SMS per minute
   '/api/email': { windowMs: 60 * 1000, maxRequests: 10 },     // 10 emails per minute
   '/api/translate': { windowMs: 60 * 1000, maxRequests: 30 }, // 30 translations per minute
   '/api/translate-ui': { windowMs: 60 * 1000, maxRequests: 5 }, // 5 UI translations per minute

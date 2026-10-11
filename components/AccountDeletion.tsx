@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
-import { auth, getGoogleProvider, getFacebookProvider } from '../lib/firebase';
+import { auth, getGoogleProvider } from '../lib/firebase';
 import { EmailAuthProvider, reauthenticateWithCredential, reauthenticateWithPopup } from 'firebase/auth';
 
 /**
@@ -34,7 +34,7 @@ export function AccountDeletionModal({ isOpen, onClose }: { isOpen: boolean; onC
   const [showFinalConfirm, setShowFinalConfirm] = useState(false);
 
   const REQUIRED_CONFIRMATION = 'DELETE MY ACCOUNT PERMANENTLY';
-  // Google/Facebook accounts have no password; they re-confirm via their provider popup.
+  // Google accounts have no password; they re-confirm via their provider popup.
   const usesPassword = !!auth.currentUser?.providerData.some(p => p.providerId === 'password');
 
   const handleNext = async () => {
@@ -84,8 +84,7 @@ export function AccountDeletionModal({ isOpen, onClose }: { isOpen: boolean; onC
         const credential = EmailAuthProvider.credential(auth.currentUser.email || currentUser.email, password);
         await reauthenticateWithCredential(auth.currentUser, credential);
       } else {
-        const isFacebook = auth.currentUser.providerData.some(p => p.providerId === 'facebook.com');
-        await reauthenticateWithPopup(auth.currentUser, isFacebook ? getFacebookProvider() : getGoogleProvider());
+        await reauthenticateWithPopup(auth.currentUser, getGoogleProvider());
       }
 
       // Step: Delete all data + the auth account server-side. Customers can't
@@ -251,7 +250,7 @@ export function AccountDeletionModal({ isOpen, onClose }: { isOpen: boolean; onC
             {step === 1 && !isDeleting && !usesPassword && (
               <div>
                 <p className="text-sm text-zinc-400 mb-4">
-                  For security, please confirm with your Google/Facebook sign-in.
+                  For security, please confirm with your Google sign-in.
                 </p>
               </div>
             )}

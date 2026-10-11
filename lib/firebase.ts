@@ -1,7 +1,7 @@
 import { initializeApp, getApps, getApp } from 'firebase/app';
-import { getAuth, GoogleAuthProvider, FacebookAuthProvider } from 'firebase/auth';
-import { getFirestore } from 'firebase/firestore';
-import { getStorage } from 'firebase/storage';
+import { getAuth, connectAuthEmulator, GoogleAuthProvider } from 'firebase/auth';
+import { getFirestore, connectFirestoreEmulator } from 'firebase/firestore';
+import { getStorage, connectStorageEmulator } from 'firebase/storage';
 
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
@@ -19,16 +19,21 @@ auth.languageCode = 'de'; // Password reset / verification emails match the site
 const db = getFirestore(app);
 const storage = getStorage(app);
 
+// Local testing only: `NEXT_PUBLIC_USE_FIREBASE_EMULATORS=true npm run dev`
+// points the site at the Firebase emulators (see firebase.json) instead of
+// the live project. Never set this in Vercel.
+if (process.env.NEXT_PUBLIC_USE_FIREBASE_EMULATORS === 'true' && !(globalThis as any).__dhurdurEmulators) {
+  (globalThis as any).__dhurdurEmulators = true;
+  connectAuthEmulator(auth, 'http://127.0.0.1:9099', { disableWarnings: true });
+  connectFirestoreEmulator(db, '127.0.0.1', 8080);
+  connectStorageEmulator(storage, '127.0.0.1', 9199);
+}
+
 export const getGoogleProvider = () => {
   const provider = new GoogleAuthProvider();
   provider.setCustomParameters({ prompt: 'select_account' });
   return provider;
 };
 
-export const getFacebookProvider = () => {
-  const provider = new FacebookAuthProvider();
-  provider.setCustomParameters({ display: 'popup' });
-  return provider;
-};
 
 export { app, auth, db, storage };
