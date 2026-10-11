@@ -65,8 +65,8 @@ export async function POST(req: NextRequest) {
 
     logAudit(createAuditLog(req, uid, undefined, 'account_delete', uid, 'user', true, undefined, { appointments, alerts, waitlist }));
     return NextResponse.json({ success: true });
-  } catch (err: any) {
-    logAudit(createAuditLog(req, uid, undefined, 'account_delete', uid, 'user', false, err?.message || 'failed'));
+  } catch (err) {
+    logAudit(createAuditLog(req, uid, undefined, 'account_delete', uid, 'user', false, err instanceof Error ? err.message : 'failed'));
     return NextResponse.json({ error: 'Deletion failed' }, { status: 500 });
   }
 }

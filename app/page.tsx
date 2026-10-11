@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { motion, Variants } from 'framer-motion';
-import { useApp } from '@/context/AppContext';
+import { useApp, type UserProfile, type ServiceItem, type StylistItem } from '@/context/AppContext';
 import { NotificationBell } from '@/components/NotificationBell';
 import { LanguageSelector } from '@/components/LanguageSelector';
 import { ProfileView } from '@/components/ProfileView';
@@ -22,10 +22,6 @@ const slideUpItem: Variants = {
   show: { opacity: 1, y: 0, transition: { type: "spring", bounce: 0.4, duration: 1.2 } }
 };
 
-const popInItem: Variants = {
-  hidden: { opacity: 0, scale: 0.5, rotate: -10 },
-  show: { opacity: 1, scale: 1, rotate: 0, transition: { type: "spring", bounce: 0.6, duration: 1.5 } }
-};
 
 const fadeIn: Variants = {
   hidden: { opacity: 0 },
@@ -45,6 +41,7 @@ export default function DhurdurApp() {
   // Logging out (or losing admin rights) should never leave someone stuck
   // in the admin panel — always land back on the real public view.
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- syncs with an external source (auth/Firestore/localStorage/clock/props), intentional
     if (!isAdminAuth) setAdminPanelOpen(false);
   }, [isAdminAuth]);
 
@@ -93,7 +90,7 @@ function AdminDashboard({ onLogout, onPreviewSite }: { onLogout: () => void; onP
   const [activeTab, setActiveTab] = useState('Dashboard');
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const {
-    appointments, usersDB, clientNotesDB, servicesDB, stylistsDB, waitlist, generalSettings, currentUser,
+    appointments, usersDB, clientNotesDB, stylistsDB, waitlist, generalSettings, currentUser,
     updateAppointmentStatus, addAdminAppointment, addService, deleteService,
     addStylist, deleteStylist, updateGeneralSettings, notifyWaitlist, removeFromWaitlist, updateUserNotes, t, lang,
     getTranslatedServices, getTranslatedStylists
@@ -141,6 +138,7 @@ function AdminDashboard({ onLogout, onPreviewSite }: { onLogout: () => void; onP
   };
 
   const [walkinWait, setWalkinWait] = useState(generalSettings.walkinWaitTime);
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- syncs with an external source (auth/Firestore/localStorage/clock/props), intentional
   useEffect(() => setWalkinWait(generalSettings.walkinWaitTime), [generalSettings.walkinWaitTime]);
 
   const [apptSearch, setApptSearch] = useState('');
@@ -603,12 +601,10 @@ function AdminDashboard({ onLogout, onPreviewSite }: { onLogout: () => void; onP
 // 4. MAIN WEBSITE
 // ==========================================
 function MainWebsite({ onEnterAdmin }: { onEnterAdmin: () => void }) {
-  const { currentUser, isAdminAuth, loginEmail, registerEmail, loginOAuth, resetPassword, logout, servicesDB, stylistsDB, generalSettings, t, lang, getTranslatedServices, getTranslatedStylists } = useApp();
+  const { currentUser, isAdminAuth, loginEmail, registerEmail, loginOAuth, resetPassword, logout, servicesDB, stylistsDB, generalSettings, t, lang } = useApp();
   const { resetConsent } = useCookieConsent();
   const [scrolled, setScrolled] = useState(false);
 
-  const translatedServices = getTranslatedServices();
-  const translatedStylists = getTranslatedStylists();
   const [activeSection, setActiveSection] = useState("");
   const [showClientAuth, setShowClientAuth] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
@@ -618,6 +614,7 @@ function MainWebsite({ onEnterAdmin }: { onEnterAdmin: () => void }) {
   const BUSINESS_HOURS = { open: 9, close: 18 };
   const [now, setNow] = useState<Date | null>(null);
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- syncs with an external source (auth/Firestore/localStorage/clock/props), intentional
     setNow(new Date());
     const timer = setInterval(() => setNow(new Date()), 60000);
     return () => clearInterval(timer);
@@ -823,6 +820,7 @@ function MainWebsite({ onEnterAdmin }: { onEnterAdmin: () => void }) {
           animate={{ scale: [1, 1.05, 1] }}
           transition={{ duration: 20, repeat: Infinity, ease: "easeInOut" }}
         >
+          {/* eslint-disable-next-line @next/next/no-img-element -- images come from admin-entered URLs on any host; next/image would need every host allow-listed */}
           <img
             src="https://images.unsplash.com/photo-1503951914875-452162b0f3f1?q=80&w=3000&auto=format&fit=crop"
             alt="Background"
@@ -919,6 +917,7 @@ function MainWebsite({ onEnterAdmin }: { onEnterAdmin: () => void }) {
       {/* SERVICES SECTION */}
       <section id="services" className="relative py-24 overflow-hidden scroll-mt-24">
         <div className="absolute inset-0 -z-10">
+          {/* eslint-disable-next-line @next/next/no-img-element -- images come from admin-entered URLs on any host; next/image would need every host allow-listed */}
           <img
             src="https://images.unsplash.com/photo-1702865272115-5afdbae975af?q=80&w=2400&auto=format&fit=crop"
             alt=""
@@ -1049,6 +1048,7 @@ function MainWebsite({ onEnterAdmin }: { onEnterAdmin: () => void }) {
       {/* THE NUMBERS SECTION */}
       <section className="relative py-24 overflow-hidden">
         <div className="absolute inset-0 -z-10">
+          {/* eslint-disable-next-line @next/next/no-img-element -- images come from admin-entered URLs on any host; next/image would need every host allow-listed */}
           <img
             src="https://images.unsplash.com/photo-1621645582931-d1d3e6564943?q=80&w=2400&auto=format&fit=crop"
             alt=""
@@ -1098,6 +1098,7 @@ function MainWebsite({ onEnterAdmin }: { onEnterAdmin: () => void }) {
         className="relative py-24 w-full scroll-mt-24 overflow-hidden"
       >
         <div className="absolute inset-0 -z-10">
+          {/* eslint-disable-next-line @next/next/no-img-element -- images come from admin-entered URLs on any host; next/image would need every host allow-listed */}
           <img
             src="https://images.unsplash.com/photo-1669568846636-00191bb5481a?q=80&w=2400&auto=format&fit=crop"
             alt=""
@@ -1242,7 +1243,7 @@ function ClientAuthModal({ onClose, loginEmail, registerEmail, loginOAuth, reset
   registerEmail: (email: string, pass: string, name: string, phone?: string) => Promise<void>;
   loginOAuth: (provider: 'Google') => Promise<void>;
   resetPassword: (email: string) => Promise<void>;
-  currentUser: any;
+  currentUser: UserProfile | null;
 }) {
   const { t } = useApp();
   const [mode, setMode] = useState<'login' | 'register'>('login');
@@ -1356,8 +1357,8 @@ function ClientAuthModal({ onClose, loginEmail, registerEmail, loginOAuth, reset
 // ==========================================
 // 6. BOOKING FORM (real slots + submission)
 // ==========================================
-function BookingForm({ servicesDB, stylistsDB }: { servicesDB: any[]; stylistsDB: any[] }) {
-  const { currentUser, getAvailableSlots, addAppointment, addNotification, t, lang } = useApp();
+function BookingForm({ servicesDB, stylistsDB }: { servicesDB: ServiceItem[]; stylistsDB: StylistItem[] }) {
+  const { currentUser, getAvailableSlots, addAppointment, t, lang } = useApp();
   const [service, setService] = useState('');
   const [stylist, setStylist] = useState('Any');
   const [date, setDate] = useState('');

@@ -122,7 +122,7 @@ export default function PrivacyPolicy() {
             Notwendige Cookies (Sitzung, Sicherheit, Sprache) – immer aktiv, keine Einwilligung nötig
             (§25 Abs. 2 Nr. 2 TTDSG). Analytics-Cookies (Firebase Analytics) – nur mit Einwilligung
             (Art. 6 Abs. 1 lit. a DSGVO). Speicherdauer Analytics: 14 Monate.
-            Sie können Einwilligung jederzeit widerrufen über "Cookie-Einstellungen" im Footer.
+            Sie können Einwilligung jederzeit widerrufen über &quot;Cookie-Einstellungen&quot; im Footer.
           </p>
         </Section>
 
@@ -158,11 +158,11 @@ export default function PrivacyPolicy() {
               </tr>
             </thead>
             <tbody>
-              <tr className="border-b border-zinc-800"><td className="p-2">Art. 15 – Auskunft</td><td className="p-2">Bestätigung & Kopie der Daten</td><td className="p-2">Profil → "Daten exportieren" oder E-Mail</td></tr>
+              <tr className="border-b border-zinc-800"><td className="p-2">Art. 15 – Auskunft</td><td className="p-2">Bestätigung & Kopie der Daten</td><td className="p-2">Profil → &quot;Daten exportieren&quot; oder E-Mail</td></tr>
               <tr className="border-b border-zinc-800"><td className="p-2">Art. 16 – Berichtigung</td><td className="p-2">Korrektur unrichtiger Daten</td><td className="p-2">Profil → Einstellungen bearbeiten</td></tr>
-              <tr className="border-b border-zinc-800"><td className="p-2">Art. 17 – Löschung</td><td className="p-2">'Recht auf Vergessenwerden' (vorbehaltlich Aufbewahrungspflichten)</td><td className="p-2">Profil → "Konto löschen" oder E-Mail</td></tr>
+              <tr className="border-b border-zinc-800"><td className="p-2">Art. 17 – Löschung</td><td className="p-2">&apos;Recht auf Vergessenwerden&apos; (vorbehaltlich Aufbewahrungspflichten)</td><td className="p-2">Profil → &quot;Konto löschen&quot; oder E-Mail</td></tr>
               <tr className="border-b border-zinc-800"><td className="p-2">Art. 18 – Einschränkung</td><td className="p-2">Verarbeitung beschränken</td><td className="p-2">E-Mail an datenschutz@dhurdur.de</td></tr>
-              <tr className="border-b border-zinc-800"><td className="p-2">Art. 20 – Datenübertragbarkeit</td><td className="p-2">Strukturierter, maschinenlesbarer Export</td><td className="p-2">Profil → "Daten exportieren" (JSON)</td></tr>
+              <tr className="border-b border-zinc-800"><td className="p-2">Art. 20 – Datenübertragbarkeit</td><td className="p-2">Strukturierter, maschinenlesbarer Export</td><td className="p-2">Profil → &quot;Daten exportieren&quot; (JSON)</td></tr>
               <tr className="border-b border-zinc-800"><td className="p-2">Art. 21 – Widerspruch</td><td className="p-2">Gegen Verarbeitung aus berechtigtem Interesse</td><td className="p-2">E-Mail oder Cookie-Banner (Analytics)</td></tr>
               <tr className="border-b border-zinc-800"><td className="p-2">Art. 7 Abs. 3 – Widerruf</td><td className="p-2">Einwilligung jederzeit widerrufen</td><td className="p-2">Cookie-Banner oder E-Mail</td></tr>
             </tbody>

@@ -137,17 +137,3 @@ export async function deleteReferenceImage(downloadURL: string): Promise<void> {
     console.warn('Failed to delete reference image:', error);
   }
 }
-
-/**
- * Generates a signed upload URL for direct client uploads (alternative approach)
- * Use this for larger files or to avoid loading image in memory
- */
-export async function getSignedUploadUrl(
-  userId: string,
-  appointmentId: string,
-  contentType: string
-): Promise<{ uploadUrl: string; downloadUrl: string; fileName: string }> {
-  // This would require a Cloud Function to generate signed URLs
-  // For now, we use direct upload via the client SDK
-  throw new Error('Signed URLs not implemented - use uploadReferenceImage directly');
-}

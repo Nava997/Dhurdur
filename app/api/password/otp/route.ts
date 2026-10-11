@@ -52,8 +52,8 @@ export async function POST(req: NextRequest) {
       'Dhurdur: Password Change Confirmation',
       `Hi,\n\nYour confirmation code for the password change is: ${code}\n\nThe code is valid for 10 minutes. If you did not request this change, please ignore this email.\n\nThe Dhurdur Team`
     );
-  } catch (err: any) {
-    logAudit(createAuditLog(req, decoded.uid, undefined, 'password_otp', undefined, 'user', false, err?.message));
+  } catch (err) {
+    logAudit(createAuditLog(req, decoded.uid, undefined, 'password_otp', undefined, 'user', false, err instanceof Error ? err.message : undefined));
     return NextResponse.json({ error: 'Failed to send code' }, { status: 500 });
   }
 

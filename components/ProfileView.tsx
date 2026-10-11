@@ -39,17 +39,19 @@ export function ProfileView() {
 
   useEffect(() => {
     if (currentUser && isEmailProvider && currentUser.hasUpdatedPassword !== true) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- syncs with an external source (auth/Firestore/localStorage/clock/props), intentional
       setShowForcePasswordModal(true);
     }
   }, [currentUser, isEmailProvider]);
 
   useEffect(() => {
     if (currentUser) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- syncs with an external source (auth/Firestore/localStorage/clock/props), intentional
       setEditName(currentUser.name);
       setEditEmail(currentUser.email);
       let pNum = currentUser.phone || "";
       let cCode = "+49";
-      for (let c of countryCodes) {
+      for (const c of countryCodes) {
         if (pNum.startsWith(c.code)) { cCode = c.code; pNum = pNum.replace(c.code, "").trim(); break; }
       }
       setEditCountryCode(cCode);
@@ -70,7 +72,7 @@ export function ProfileView() {
       await updateDoc(doc(db, 'users', currentUser.id), { name: editName, phone: fullPhone });
       addNotification("Profil erfolgreich aktualisiert!", "success");
       setActiveTab('overview');
-    } catch (err: any) { addNotification(err.message, "error"); }
+    } catch (caught) { const err = caught as { code?: string; message: string }; addNotification(err.message, "error"); }
   };
 
   const handleSendPassOTP = async (e: React.FormEvent) => {
@@ -85,7 +87,7 @@ export function ProfileView() {
       await requestPasswordOtp();
       setIsVerifyingPassOTP(true);
       addNotification("Confirmation code sent to your email!", "info");
-    } catch (err: any) { addNotification(err.message || "Error sending code.", "error"); }
+    } catch (caught) { const err = caught as { code?: string; message: string }; addNotification(err.message || "Error sending code.", "error"); }
   };
 
   const handleVerifyPassOTP = async (e: React.FormEvent) => {
@@ -95,7 +97,7 @@ export function ProfileView() {
       await updateUserPassword(oldPass, newPass, inputPassOTP);
       setOldPass(''); setNewPass(''); setConfirmPass(''); setInputPassOTP(''); setIsVerifyingPassOTP(false);
       setShowForcePasswordModal(false);
-    } catch (err: any) {
+    } catch (caught) { const err = caught as { code?: string; message: string };
       addNotification(err.message, "error");
     }
   };
@@ -274,7 +276,7 @@ export function ProfileView() {
               <h3 className="text-lg md:text-xl font-bold mb-6">{t.profile.upcomingTitle}</h3>
               <div className="space-y-4">
                 {upcoming.map((a: Appointment) => {
-                  const sList = Array.isArray(a.services) ? a.services.join(', ') : (a as any).service || 'Leistung';
+                  const sList = Array.isArray(a.services) ? a.services.join(', ') : (a as typeof a & { service?: string }).service || 'Leistung';
                   return (
                     <div key={a.id} className={`p-5 border  ${bgBorder}`}>
                       <p className="font-bold text-base">{sList}</p>
@@ -305,7 +307,7 @@ export function ProfileView() {
               <h3 className="text-lg md:text-xl font-bold mb-6">{t.profile.historyTitle}</h3>
               <div className="space-y-4">
                 {past.map((a: Appointment) => {
-                  const sList = Array.isArray(a.services) ? a.services.join(', ') : (a as any).service || 'Leistung';
+                  const sList = Array.isArray(a.services) ? a.services.join(', ') : (a as typeof a & { service?: string }).service || 'Leistung';
                   return (
                     <div key={a.id} className={`p-5 border  ${bgBorder}`}>
                       <p className="font-bold text-base">{sList}</p>

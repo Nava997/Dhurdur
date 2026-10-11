@@ -70,6 +70,7 @@ export function CookieConsentProvider({ children }: { children: ReactNode }) {
     try {
       const stored = localStorage.getItem(CONSENT_KEY);
       if (!stored) {
+        // eslint-disable-next-line react-hooks/set-state-in-effect -- syncs with an external source (auth/Firestore/localStorage/clock/props), intentional
         setShowBanner(true);
       } else {
         const parsed = JSON.parse(stored) as ConsentState;
@@ -150,7 +151,7 @@ export function useCookieConsent() {
  * Cookie Consent Banner Component (TTDSG §25 compliant)
  */
 export function CookieConsentBanner() {
-  const { consent, showBanner, acceptAll, acceptNecessaryOnly, updateConsent, setShowBanner } = useCookieConsent();
+  const { consent, showBanner, acceptAll, acceptNecessaryOnly, updateConsent } = useCookieConsent();
   const [showDetails, setShowDetails] = useState(false);
 
   if (!showBanner) return null;
@@ -260,7 +261,7 @@ export function CookieConsentBanner() {
 
               <div className="mt-6 pt-4 border-t border-zinc-800">
                 <p className="text-xs text-zinc-500 text-center mb-4">
-                  You can withdraw or change your consent at any time via the "Cookie Settings" link in the footer
+                  You can withdraw or change your consent at any time via the &quot;Cookie Settings&quot; link in the footer
                   or by deleting cookies in your browser.
                 </p>
                 <div className="flex gap-3">

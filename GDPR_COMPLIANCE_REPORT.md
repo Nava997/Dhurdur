@@ -5,6 +5,12 @@
 **Scope:** Full audit of `C:\Users\Test\Desktop\New folder\completed\Dhurdur-salon`  
 **Status:** Production-ready codebase — **legal pages exist but incomplete; critical security headers missing**
 
+> **Update 2026-10-11:** SMS (Twilio) and Facebook login have been removed from the site, so
+> Twilio and Meta are no longer processors; their entries below were dropped. Since this report
+> was written the privacy policy has been completed in German, security headers (CSP, HSTS, etc.)
+> are in place, and old data is purged nightly by `/api/cron/cleanup`. Sections still marked ⚠️
+> reflect the original audit and should be re-checked against the current code.
+
 ---
 
 ## Executive Summary
@@ -18,8 +24,8 @@
 | **Data Subject Rights (Art. 15–22)** | ✅ **Implemented** | Data export (Art. 20), Account deletion (Art. 17), Rectification via profile |
 | **Data Retention / Storage Limitation** | ❌ **Missing** | No automated cleanup cron; retention periods undefined |
 | **Security (Art. 32 DSGVO)** | ⚠️ **Good code, no headers** | CSP, HSTS, X-Frame-Options, etc. **completely missing** from `next.config.ts` |
-| **Third-Party Processors (Art. 28)** | ⚠️ **AVVs needed** | Firebase, Firebase Storage, Twilio, Gmail, DeepL — no AVVs confirmed |
-| **International Transfers (Art. 44–49)** | ⚠️ **Verify** | Firebase (region?), Firebase Storage (US), Twilio (US), Gmail (US), DeepL (DE/US) |
+| **Third-Party Processors (Art. 28)** | ⚠️ **AVVs needed** | Firebase, Firebase Storage, Gmail, DeepL — no AVVs confirmed |
+| **International Transfers (Art. 44–49)** | ⚠️ **Verify** | Firebase (region?), Firebase Storage (US), Gmail (US), DeepL (DE/US) |
 | **ePrivacy / TTDSG (§25)** | ✅ **Compliant** | Consent before analytics, necessary cookies exempt, easy withdrawal |
 | **ROPA (Art. 30)** | ❌ **Missing** | No Record of Processing Activities documented |
 
@@ -83,7 +89,7 @@ Page exists but is **in English** (must be German for German market) and **all d
 | **Who this covers** | ⚠️ Placeholder | Legal entity name, business address, privacy contact email |
 | **What we collect** | ✅ Accurate to code | — |
 | **How we use it** | ✅ Accurate to code | — |
-| **Who we share it with** | ⚠️ Placeholder | **Must list actual providers & confirm AVVs**: Firebase (Auth, Firestore, Storage), Twilio, Gmail, DeepL |
+| **Who we share it with** | ⚠️ Placeholder | **Must list actual providers & confirm AVVs**: Firebase (Auth, Firestore, Storage), Gmail, DeepL |
 | **How long we keep it** | ⚠️ Placeholder | **No retention periods defined** — must specify per data type |
 | **Your rights** | ✅ Good | References profile export/delete — implemented in code |
 | **Cookies** | ⚠️ Placeholder | References "Cookie Settings link in footer" — **link missing** |
@@ -144,13 +150,12 @@ Page exists but is **in English** (must be German for German market) and **all d
 |---------------------|---------------|-------------------|----------------------|
 | **Account Registration** | `AppContext.tsx:540-552` | Contract (Art. 6(1)(b)) | ❌ Policy placeholder |
 | **Email/Password Login** | `AppContext.tsx:532-538` | Contract | ❌ |
-| **Google/Facebook OAuth** | `AppContext.tsx:520-530` | Contract + legitimate interest | ❌ |
+| **Google OAuth** | `AppContext.tsx:520-530` | Contract + legitimate interest | ❌ |
 | **Password Reset** | `AppContext.tsx:554-560` | Contract | ❌ |
 | **Profile Update** | `ProfileView.tsx:63-75` | Contract | ❌ |
 | **Booking (Appointments)** | `AppContext.tsx:653-679` | Contract | ❌ |
 | **Reference Images (Firebase Storage)** | `lib/storage.ts:87-125` | Contract | ❌ |
 | **Waitlist** | `AppContext.tsx:599-625` | Legitimate interest | ❌ |
-| **SMS (Twilio)** | `api/sms/route.ts` | Contract + legitimate interest | ❌ |
 | **Email (Nodemailer/Gmail)** | `api/email/route.ts` | Contract | ❌ |
 | **Firebase Analytics** | `lib/firebase.ts:18` + `CookieConsent.tsx` | Consent (Art. 6(1)(a)) | ❌ |
 | **DeepL Translation** | `api/translate*.ts` | Legitimate interest | ❌ |
@@ -170,7 +175,6 @@ Page exists but is **in English** (must be German for German market) and **all d
 | **Firestore** | Database | All user/appointment data | **Region not configured in code** | ✅ Yes | ⚠️ Verify region + AVV |
 | **Firebase Storage** | Reference images | User-uploaded photos | **Region not configured in code** | ✅ Yes | ⚠️ **Critical** — images may contain biometric data |
 | **Firebase Analytics** | Analytics (consent-gated) | Pseudonymized usage data | Follows Firebase project region | ✅ Yes | ⚠️ Verify AVV + transfer |
-| **Twilio** | SMS delivery | Phone numbers, message content | US | ✅ Yes | ⚠️ **Critical** — US provider |
 | **Gmail (Nodemailer)** | Email delivery | Email content, recipients | US | ✅ Yes | ⚠️ **Critical** — US provider |
 | **DeepL** | Translation | Text content (service names, UI) | DE (Pro) / US (Free) | ✅ Yes | ⚠️ Verify plan + location |
 
@@ -179,7 +183,6 @@ Page exists but is **in English** (must be German for German market) and **all d
 2. **Execute AVVs** with all above before go-live.
 3. **Document transfer mechanisms** for US providers:
    - **Firebase Storage**: Check if bucket location = EU
-   - **Twilio**: Check DPF certification or SCCs
    - **Gmail**: Google Ireland Ltd. (EU) for Workspace; SMTP may route via US
    - **DeepL**: DeepL SE (Germany) for Pro; Free tier may use US — verify plan
 4. **Update Privacy Policy "Who we share it with" section** with actual provider names, regions, and confirmed transfer mechanism.
@@ -230,13 +233,13 @@ Create `app/api/cron/cleanup/route.ts` with `CRON_SECRET` auth.
 | Measure | Implementation |
 |---------|---------------|
 | **Input Validation** | Zod schemas on all API routes (`validation.ts`) |
-| **Header Injection Prevention** | Sanitization in email/SMS routes |
+| **Header Injection Prevention** | Sanitization in email routes |
 | **Password Handling** | Firebase Auth (scrypt) + client strength meter + HIBP breach check (`password-breach.ts`) |
 | **Re-auth for sensitive actions** | Password confirmation for deletion/password change |
 | **Audit Logging** | Structured JSON logs (`validation.ts:133-167`) — console only |
 | **Admin Authorization** | Server-side role check (custom claims support in `firebaseAdmin.ts`) |
 | **ID Token Verification** | All API routes verify Firebase ID token |
-| **Ownership Checks** | SMS/email routes verify resource ownership |
+| **Ownership Checks** | Email route verifies resource ownership |
 | **EXIF Stripping** | `storage.ts` compresses/resizes images, strips metadata |
 
 ### **MISSING: Security Headers** ❌
@@ -258,12 +261,12 @@ const nextConfig: NextConfig = {
             key: 'Content-Security-Policy',
             value: [
               "default-src 'self'",
-              "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://apis.google.com https://www.gstatic.com https://www.googletagmanager.com https://connect.facebook.net",
+              "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://apis.google.com https://www.gstatic.com https://www.googletagmanager.com",
               "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
               "font-src 'self' data: https://fonts.gstatic.com",
               "img-src 'self' data: https: blob: https://images.unsplash.com https://firebasestorage.googleapis.com",
               "connect-src 'self' https://*.firebaseio.com https://*.googleapis.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://api-free.deepl.com https://api.deepl.com wss://*.firebaseio.com",
-              "frame-src 'self' https://accounts.google.com https://www.facebook.com https://YOUR_PROJECT.firebaseapp.com",
+              "frame-src 'self' https://accounts.google.com https://YOUR_PROJECT.firebaseapp.com",
               "frame-ancestors 'none'",
               "base-uri 'self'",
               "form-action 'self'",
@@ -330,14 +333,12 @@ export default nextConfig;
 |----------|------|---------------------------|--------------|
 | **Firebase (Auth/Firestore/Storage/Analytics)** | Personal data + images | Google Ireland Ltd. (EU) — **DPF certified** | ⚠️ **Verify region = europe-west1/3** |
 | **Firebase Storage** | Reference images (may contain biometric data) | Same as above | ⚠️ **Critical** — verify bucket location |
-| **Twilio** | Phone + message content | Twilio Inc. (US) — **Check DPF/SCCs** | ⚠️ **Action required** |
 | **Gmail (Nodemailer)** | Email content | Google Ireland Ltd. (EU) for Workspace; SMTP may route via US | ⚠️ Verify |
 | **DeepL** | Translation text | DeepL SE (DE) for Pro; Free tier = US | ⚠️ Verify plan |
 
 ### Actions
 1. **Confirm Firebase project region** = `europe-west1` or `europe-west3` (check Firebase Console → Project Settings).
 2. **Confirm Firebase Storage bucket location** = EU region.
-3. Check **Twilio DPF status**: https://www.dataprivacyframework.gov/s/participant-search
 4. Upgrade **DeepL to Pro** (EU hosting) or execute SCCs.
 5. **Self-host Google Fonts** if used (currently none detected — good).
 
@@ -366,7 +367,7 @@ export default nextConfig;
 - [ ] **Change `layout.tsx:17`** from `lang="en"` to `lang="de"`
 - [ ] **Add security headers** to `next.config.ts` (CSP, HSTS, X-Frame-Options, etc.)
 - [ ] **Add "Cookie-Einstellungen" link** to Navbar (desktop + mobile) calling `resetConsent()`
-- [ ] **Execute AVVs** with Firebase, Firebase Storage, Twilio, Gmail, DeepL
+- [ ] **Execute AVVs** with Firebase, Firebase Storage, Gmail, DeepL
 - [ ] **Verify international transfer mechanisms** (DPF/SCCs) for US providers
 - [ ] **Set real `NEXT_PUBLIC_ADMIN_EMAIL`** (not placeholder)
 - [ ] **Configure `INTERNAL_API_SECRET`** for admin API protection
@@ -408,7 +409,6 @@ export default nextConfig;
 | `app/page.tsx` (Navbar) | Navigation | Add Impressum, Privacy, Cookie Settings links |
 | `lib/firebase.ts` | Firebase config | Verify region in Firebase Console (not set in code) |
 | `lib/storage.ts` | Firebase Storage | Confirm bucket location = EU; AVV signed |
-| `app/api/sms/route.ts` | Twilio SMS | Confirm AVV + DPF/SCCs |
 | `app/api/email/route.ts` | Nodemailer/Gmail | Use verified domain, confirm AVV |
 | `app/api/translate/route.ts` | DeepL | Confirm Pro plan (EU) or SCCs |
 | `app/api/consent-log/route.ts` | Consent audit | Already good — ensure Firestore rules allow write |
@@ -433,10 +433,6 @@ FIREBASE_SERVICE_ACCOUNT_BASE64=          # Base64-encoded service account JSON
 # Firebase Storage (reference images)
 # Uses same Firebase project — verify bucket location = EU
 
-# Twilio (SMS)
-TWILIO_ACCOUNT_SID=
-TWILIO_AUTH_TOKEN=
-TWILIO_PHONE_NUMBER=
 
 # Email (Nodemailer via Gmail — use App Password)
 EMAIL_USER=your-salon@yourdomain.de       # Use verified domain!
@@ -497,9 +493,9 @@ CONSENT_LOG_RETENTION_MONTHS=36
 - [ ] Reference images: EXIF stripped, compressed, stored in Firebase Storage
 
 ### Data Flows
-- [ ] Booking → confirmation email + admin email + SMS (if opted in)
-- [ ] Admin confirm → customer email + SMS + in-app alert
-- [ ] Waitlist notify → SMS + email
+- [ ] Booking → confirmation email + admin email
+- [ ] Admin confirm → customer email + in-app alert
+- [ ] Waitlist notify → email
 - [ ] Password reset → email sent
 - [ ] UI language change → DeepL translation cached in Firestore
 - [ ] Reference image upload → Firebase Storage → download URL saved to appointment
@@ -530,7 +526,7 @@ CONSENT_LOG_RETENTION_MONTHS=36
 3. **Change `lang="en"` → `lang="de"`** in `layout.tsx`
 4. **Add full security headers** to `next.config.ts` (currently empty!)
 5. **Add "Cookie-Einstellungen" link** to Navbar (desktop + mobile)
-6. **Sign AVVs** with Firebase, Firebase Storage, Twilio, Gmail, DeepL
+6. **Sign AVVs** with Firebase, Firebase Storage, Gmail, DeepL
 7. **Verify Firebase region + Storage bucket** = EU
 8. **Verify transfer mechanisms** for US providers (DPF/SCCs)
 9. **Add retention cleanup cron** + document periods

@@ -78,9 +78,9 @@ export async function POST(req: NextRequest) {
     logAudit(auditLog);
 
     return NextResponse.json({ success: true, translatedText }, { status: 200 });
-  } catch (error: any) {
+  } catch (error) {
     console.error("Translate API Error:", error);
-    const auditLog = createAuditLog(req, userId, undefined, 'translate', undefined, 'translation', false, error.message || 'Failed to translate', {
+    const auditLog = createAuditLog(req, userId, undefined, 'translate', undefined, 'translation', false, error instanceof Error ? error.message : 'Failed to translate', {
       durationMs: Date.now() - startTime,
     });
     logAudit(auditLog);

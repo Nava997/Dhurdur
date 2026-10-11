@@ -29,7 +29,9 @@ type LeafPath = string[];
 // Keys whose values must never be sent to DeepL or changed (document ids, image links).
 const KEEP_AS_IS = new Set(['id', 'images']);
 
-function flatten(obj: any, path: LeafPath = [], out: { path: LeafPath; text: string }[] = []) {
+type Dict = Record<string, unknown>;
+
+function flatten(obj: unknown, path: LeafPath = [], out: { path: LeafPath; text: string }[] = []) {
   if (KEEP_AS_IS.has(path[path.length - 1])) return out;
   if (typeof obj === 'string') {
     // Do not send empty strings to DeepL or it will fail with a 400 error
@@ -37,12 +39,12 @@ function flatten(obj: any, path: LeafPath = [], out: { path: LeafPath; text: str
   } else if (Array.isArray(obj)) {
     obj.forEach((item, i) => flatten(item, [...path, String(i)], out));
   } else if (obj && typeof obj === 'object') {
-    for (const key in obj) flatten(obj[key], [...path, key], out);
+    for (const key in obj) flatten((obj as Dict)[key], [...path, key], out);
   }
   return out;
 }
 
-function unflatten(template: any, translatedTexts: Map<string, string>, path: LeafPath = []): any {
+function unflatten(template: unknown, translatedTexts: Map<string, string>, path: LeafPath = []): unknown {
   if (KEEP_AS_IS.has(path[path.length - 1])) return template;
   if (typeof template === 'string') {
     if (template.trim() === '') return template;
@@ -50,8 +52,8 @@ function unflatten(template: any, translatedTexts: Map<string, string>, path: Le
   } else if (Array.isArray(template)) {
     return template.map((item, i) => unflatten(item, translatedTexts, [...path, String(i)]));
   } else if (template && typeof template === 'object') {
-    const result: any = {};
-    for (const key in template) result[key] = unflatten(template[key], translatedTexts, [...path, key]);
+    const result: Dict = {};
+    for (const key in template) result[key] = unflatten((template as Dict)[key], translatedTexts, [...path, key]);
     return result;
   }
   return template;
@@ -105,12 +107,12 @@ async function deeplTranslate(texts: string[], deeplLang: string): Promise<strin
   return out;
 }
 
-async function translateTree(tree: any, deeplLang: string) {
+async function translateTree(tree: Dict, deeplLang: string) {
   const leaves = flatten(tree);
   const translated = await deeplTranslate(leaves.map(l => l.text), deeplLang);
   const map = new Map<string, string>();
   leaves.forEach((leaf, i) => map.set(leaf.path.join('.'), translated[i]));
-  return { result: unflatten(tree, map), count: leaves.length };
+  return { result: unflatten(tree, map) as Dict, count: leaves.length };
 }
 
 export async function POST(req: NextRequest) {
@@ -150,7 +152,7 @@ export async function POST(req: NextRequest) {
     const staticHash = hashOf(staticSource);
     const dynamicHash = hashOf(dynamicSource);
 
-    let cached: any;
+    let cached: Dict | undefined;
     try {
       const snap = await adminDb.doc('settings/translations').get();
       cached = snap.exists ? snap.data()?.[targetLang] : undefined;
@@ -174,7 +176,7 @@ export async function POST(req: NextRequest) {
     }
 
     let stringsTranslated = 0;
-    let translatedDict: any = { ...(cached || {}) };
+    let translatedDict: Dict = { ...(cached || {}) };
 
     if (!staticOk) {
       const { result, count } = await translateTree(staticSource, deeplLang);
@@ -203,9 +205,9 @@ export async function POST(req: NextRequest) {
     }));
 
     return NextResponse.json({ success: true, translatedDict }, { status: 200 });
-  } catch (error: any) {
+  } catch (error) {
     console.error('Translation Pipeline Error:', error);
-    logAudit(createAuditLog(req, userId, undefined, 'translate_ui', undefined, 'translation_cache', false, error.message || 'Translation failed', {
+    logAudit(createAuditLog(req, userId, undefined, 'translate_ui', undefined, 'translation_cache', false, error instanceof Error ? error.message : 'Translation failed', {
       durationMs: Date.now() - startTime,
     }));
     return NextResponse.json({ error: 'Translation failed' }, { status: 500 });

@@ -7,7 +7,6 @@ import { z } from 'zod';
 
 // Common validation helpers
 const e164PhoneRegex = /^\+[1-9]\d{1,14}$/;
-const sanitizeString = (maxLength: number) => z.string().min(1).max(maxLength).transform(s => s.trim());
 const emailSchema = z.string().email().max(254).toLowerCase().transform(s => s.trim());
 
 // Email API validation

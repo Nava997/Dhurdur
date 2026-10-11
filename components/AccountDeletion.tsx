@@ -31,7 +31,6 @@ export function AccountDeletionModal({ isOpen, onClose }: { isOpen: boolean; onC
   const [confirmText, setConfirmText] = useState('');
   const [isDeleting, setIsDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [showFinalConfirm, setShowFinalConfirm] = useState(false);
 
   const REQUIRED_CONFIRMATION = 'DELETE MY ACCOUNT PERMANENTLY';
   // Google accounts have no password; they re-confirm via their provider popup.
@@ -45,7 +44,6 @@ export function AccountDeletionModal({ isOpen, onClose }: { isOpen: boolean; onC
         return;
       }
       setError(null);
-      setShowFinalConfirm(true);
       setStep(1);
     } else if (step === 1) {
       // Step 2: Password verification
@@ -116,7 +114,7 @@ export function AccountDeletionModal({ isOpen, onClose }: { isOpen: boolean; onC
       logout();
       onClose();
 
-    } catch (err: any) {
+    } catch (caught) { const err = caught as { code?: string; message: string };
       console.error('Deletion failed:', err);
 
       let errorMsg = 'Deletion failed. ';
@@ -143,7 +141,6 @@ export function AccountDeletionModal({ isOpen, onClose }: { isOpen: boolean; onC
   const handleBack = () => {
     if (step > 0) {
       setStep(step - 1);
-      setShowFinalConfirm(false);
       setError(null);
     } else {
       onClose();

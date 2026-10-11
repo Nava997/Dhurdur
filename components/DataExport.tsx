@@ -81,7 +81,7 @@ export function DataExportButton() {
       setExportProgress('');
       addNotification('Datenexport erfolgreich heruntergeladen!', 'success');
 
-    } catch (error: any) {
+    } catch (caught) { const error = caught as { code?: string; message: string };
       console.error('Export failed:', error);
       addNotification(`Export fehlgeschlagen: ${error.message}`, 'error');
       setExportProgress('');
@@ -155,7 +155,7 @@ export function DataExportModal({ isOpen, onClose }: { isOpen: boolean; onClose:
 
       setExportData(data);
       setPreviewJson(JSON.stringify(data, null, 2));
-    } catch (error: any) {
+    } catch (caught) { const error = caught as { code?: string; message: string };
       addNotification(`Fehler beim Laden: ${error.message}`, 'error');
     } finally {
       setIsExporting(false);
@@ -163,6 +163,7 @@ export function DataExportModal({ isOpen, onClose }: { isOpen: boolean; onClose:
   }, [currentUser, addNotification]);
 
   React.useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- syncs with an external source (auth/Firestore/localStorage/clock/props), intentional
     if (isOpen) loadData();
   }, [isOpen, loadData]);
 

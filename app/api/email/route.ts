@@ -116,8 +116,8 @@ export async function POST(req: NextRequest) {
     logAudit(auditLog);
 
     return NextResponse.json({ success: true, message: 'Email sent successfully' }, { status: 200 });
-  } catch (error: any) {
-    const auditLog = createAuditLog(req, userId, userRole, 'email_send', undefined, 'notification', false, error.message || 'Failed to send email', {
+  } catch (error) {
+    const auditLog = createAuditLog(req, userId, userRole, 'email_send', undefined, 'notification', false, error instanceof Error ? error.message : 'Failed to send email', {
       durationMs: Date.now() - startTime,
     });
     logAudit(auditLog);

@@ -9,11 +9,6 @@
  * 4. Check if our hash suffix is in the response
  */
 
-interface PwnedPasswordResponse {
-  hashSuffix: string;
-  count: number;
-}
-
 /**
  * Checks if a password has been pwned using HIBP API
  * Returns count of times seen in breaches (0 = not found)

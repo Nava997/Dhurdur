@@ -3,7 +3,7 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import { auth, db, getGoogleProvider } from '../lib/firebase';
 import { fallbackTranslations, type TranslationData } from '../lib/translations';
 export { fallbackTranslations };
-import { signInWithPopup, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged, sendPasswordResetEmail, verifyBeforeUpdateEmail, EmailAuthProvider, reauthenticateWithCredential } from 'firebase/auth';
+import { signInWithPopup, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged, sendPasswordResetEmail, EmailAuthProvider, reauthenticateWithCredential } from 'firebase/auth';
 import { doc, setDoc, collection, onSnapshot, addDoc, updateDoc, deleteDoc, getDoc, DocumentReference, query, where } from 'firebase/firestore';
 
 type Language = string;
@@ -46,7 +46,7 @@ export interface AppContextType {
   changeLanguage: (newLang: string) => Promise<void>;
   isTranslatingUI: boolean;
   page: Page; setPage: (page: Page) => void;
-  t: any; updateTranslation: (lang: Language, section: string, key: string, val: string) => Promise<void>;
+  t: TranslationData[string]; updateTranslation: (lang: Language, section: string, key: string, val: string) => Promise<void>;
   isAdminAuth: boolean;
   currentUser: UserProfile | null;
   usersDB: UserProfile[]; clientNotesDB: Record<string, string>; updateUserNotes: (id: string, notes: string) => Promise<void>;
@@ -166,11 +166,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  // Once a visitor on the login screen is signed in, send them on to their profile.
   useEffect(() => {
     if (currentUser && page === 'auth') {
-      setPageRouter('profile');
+      window.history.pushState(null, '', '#profile');
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- reacting to the auth listener, not to render
+      setPageState('profile');
+      window.scrollTo(0, 0);
     }
-  }, [currentUser, page, setPageRouter]);
+  }, [currentUser, page]);
 
   // Auth state + own profile only. Appointments/alerts moved to their own
   // effect below, scoped by role, so a regular customer never subscribes to
@@ -248,6 +252,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         setAlerts(snap.docs.map(d => ({ id: d.id, ...d.data() } as Alert)));
       }, (error) => console.error("🚨 CRASH ON COLLECTION 'alerts':", error.message));
     } else {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- syncs with an external source (auth/Firestore/localStorage/clock/props), intentional
       setAppointments([]);
       setAlerts([]);
     }
@@ -274,10 +279,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
       unsubClientNotes = onSnapshot(collection(db, 'clientNotes'), (snap) => {
         const notesMap: Record<string, string> = {};
-        snap.docs.forEach(d => { notesMap[d.id] = (d.data() as any).notes || ''; });
+        snap.docs.forEach(d => { notesMap[d.id] = (d.data() as { notes?: string }).notes || ''; });
         setClientNotesDB(notesMap);
       }, (error) => console.error("🚨 CRASH ON COLLECTION 'clientNotes':", error.message));
     } else {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- syncs with an external source (auth/Firestore/localStorage/clock/props), intentional
       setUsersDB([]);
       setWaitlist([]);
       setClientNotesDB({});
@@ -333,7 +339,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         addNotification(data.error || 'Übersetzung fehlgeschlagen.', 'error');
         setLang('de');
       }
-    } catch (e) {
+    } catch {
       addNotification('Übersetzung fehlgeschlagen.', 'error');
       setLang('de');
     } finally {
@@ -410,7 +416,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       await signInWithPopup(auth, provider);
       setPageRouter('profile');
       addNotification(`Logged in with ${providerName}`, 'success');
-    } catch (error: any) {
+    } catch (caught) { const error = caught as { code?: string; message: string };
       if (error.code === 'auth/popup-closed-by-user' || error.code === 'auth/cancelled-popup-request') return;
       addNotification(error.message, 'error');
     }
@@ -421,7 +427,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       await signInWithEmailAndPassword(auth, email, pass);
       setPageRouter('profile');
       addNotification("Login successful", 'success');
-    } catch (error: any) { addNotification(error.message, 'error'); }
+    } catch (caught) { const error = caught as { code?: string; message: string }; addNotification(error.message, 'error'); }
   };
 
   const registerEmail = async (email: string, pass: string, name: string, phone?: string) => {
@@ -439,7 +445,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       });
       setPageRouter('profile');
       addNotification("Account created and verified successfully!", 'success');
-    } catch (error: any) {
+    } catch (caught) { const error = caught as { code?: string; message: string };
       addNotification(error.message, 'error');
     }
   };
@@ -449,7 +455,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     try {
       await sendPasswordResetEmail(auth, email);
       addNotification("Password reset email sent! Check your inbox.", 'success');
-    } catch (error: any) { addNotification(error.message, 'error'); }
+    } catch (caught) { const error = caught as { code?: string; message: string }; addNotification(error.message, 'error'); }
   };
 
   const logout = () => { signOut(auth); setPageRouter('home'); };
@@ -588,7 +594,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const appt = appointments.find(a => a.id === id);
     if (!appt) return;
 
-    const updates: any = { status };
+    const updates: Record<string, unknown> = { status };
     if (notes !== undefined) updates.notes = notes;
 
     if (status === 'confirmed' && proposedDate && proposedTime) {
@@ -692,7 +698,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   // removing a service never shifts names onto the wrong item, and anything
   // not yet translated falls back to the German original.
   const getTranslatedServices = () => {
-    const list: any[] = Array.isArray(translations[lang]?.dynamicServices) ? translations[lang].dynamicServices : [];
+    const list: { id?: string; name?: string }[] = Array.isArray(translations[lang]?.dynamicServices) ? translations[lang].dynamicServices : [];
     if (lang === 'de' || list.length === 0) return servicesDB;
     return servicesDB.map(s => {
       const ts = list.find(x => x?.id === s.id);
@@ -703,7 +709,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   // Stylist names are never translated (they're stored on bookings and used
   // for availability matching); only their specialties are.
   const getTranslatedStylists = () => {
-    const list: any[] = Array.isArray(translations[lang]?.dynamicStylists) ? translations[lang].dynamicStylists : [];
+    const list: { id?: string; services?: string[] }[] = Array.isArray(translations[lang]?.dynamicStylists) ? translations[lang].dynamicStylists : [];
     if (lang === 'de' || list.length === 0) return stylistsDB;
     return stylistsDB.map(s => {
       const ts = list.find(x => x?.id === s.id);

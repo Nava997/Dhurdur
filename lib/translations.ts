@@ -1,5 +1,8 @@
 // Base UI dictionary. Lives outside the "use client" context so server routes
 // (e.g. /api/translate-ui) can use it as the trusted translation source.
+// Free-form nested dictionary whose shape is also produced at runtime by DeepL,
+// so its leaves are deliberately left untyped.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export type TranslationData = { [key: string]: { [key: string]: any } };
 
 export const fallbackTranslations: TranslationData = {

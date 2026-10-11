@@ -28,7 +28,7 @@ export function validateAndFormatPhone(
       formatted: phoneNumber.format('E.164'),
       country: phoneNumber.country,
     };
-  } catch (error) {
+  } catch {
     return { valid: false, error: 'Fehler bei der Telefonnummer-Validierung' };
   }
 }

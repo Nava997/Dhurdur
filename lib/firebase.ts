@@ -22,8 +22,9 @@ const storage = getStorage(app);
 // Local testing only: `NEXT_PUBLIC_USE_FIREBASE_EMULATORS=true npm run dev`
 // points the site at the Firebase emulators (see firebase.json) instead of
 // the live project. Never set this in Vercel.
-if (process.env.NEXT_PUBLIC_USE_FIREBASE_EMULATORS === 'true' && !(globalThis as any).__dhurdurEmulators) {
-  (globalThis as any).__dhurdurEmulators = true;
+const emulatorFlag = globalThis as typeof globalThis & { __dhurdurEmulators?: boolean };
+if (process.env.NEXT_PUBLIC_USE_FIREBASE_EMULATORS === 'true' && !emulatorFlag.__dhurdurEmulators) {
+  emulatorFlag.__dhurdurEmulators = true;
   connectAuthEmulator(auth, 'http://127.0.0.1:9099', { disableWarnings: true });
   connectFirestoreEmulator(db, '127.0.0.1', 8080);
   connectStorageEmulator(storage, '127.0.0.1', 9199);

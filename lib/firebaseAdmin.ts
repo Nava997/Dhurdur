@@ -28,7 +28,7 @@ function getAdminApp(): App {
   try {
     const decoded = Buffer.from(base64Key, 'base64').toString('utf-8');
     serviceAccount = JSON.parse(decoded);
-  } catch (error) {
+  } catch {
     throw new Error('Invalid FIREBASE_SERVICE_ACCOUNT_BASE64: failed to decode/parse');
   }
 
@@ -74,17 +74,17 @@ export function getAdminDb(): Firestore {
  * own try/catch, instead of taking down unrelated routes.
  */
 export const adminAuth: Auth = new Proxy({} as Auth, {
-  get(_target, prop, receiver) {
-    const real = getAdminAuth() as any;
-    const value = real[prop];
+  get(_target, prop) {
+    const real = getAdminAuth();
+    const value = Reflect.get(real, prop);
     return typeof value === 'function' ? value.bind(real) : value;
   },
 });
 
 export const adminDb: Firestore = new Proxy({} as Firestore, {
-  get(_target, prop, receiver) {
-    const real = getAdminDb() as any;
-    const value = real[prop];
+  get(_target, prop) {
+    const real = getAdminDb();
+    const value = Reflect.get(real, prop);
     return typeof value === 'function' ? value.bind(real) : value;
   },
 });
