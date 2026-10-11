@@ -2,12 +2,16 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // SAFE ADMIN CHECK: Emails go first to prevent get() crashes!
+    // Admin = a VERIFIED email on the allow-list, or a user doc with role 'admin'.
+    // email_verified is required: Firebase email/password sign-up does not verify
+    // ownership, so without it anyone could register an allow-listed address
+    // (if it isn't registered yet) and get full admin access.
+    // Keep this list in sync with NEXT_PUBLIC_ADMIN_EMAIL / storage.rules.
     function isAdmin() {
       return request.auth != null && (
-        request.auth.token.email == 'rick.maity07@gmail.com' ||
-        request.auth.token.email == 'admin.avdar@gmail.com' ||
-        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+        (request.auth.token.email_verified == true &&
+          request.auth.token.email in ['rick.maity07@gmail.com']) ||
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin')
       );
     }
@@ -20,29 +24,61 @@ service cloud.firestore {
       return isOwner(userId) || isAdmin();
     }
 
+    function changed() {
+      return request.resource.data.diff(resource.data).affectedKeys();
+    }
+
     match /users/{userId} {
-      allow read, write: if isOwnerOrAdmin(userId);
+      allow read: if isOwnerOrAdmin(userId);
+      allow delete: if isAdmin();
+      allow write: if isAdmin();
+
+      // Customers create their own profile as a plain user with 0 loyalty points.
+      allow create: if isOwner(userId)
+        && request.resource.data.id == userId
+        && request.resource.data.role == 'user'
+        && request.resource.data.haircutCount == 0;
+
+      // Customers may edit their own contact details, but never their role/id,
+      // and loyalty points may only go up by one (a booking) or down.
+      allow update: if isOwner(userId)
+        && !changed().hasAny(['role', 'id'])
+        && changed().hasOnly(['name', 'email', 'phone', 'photoURL', 'hasUpdatedPassword', 'haircutCount'])
+        && (!changed().hasAny(['haircutCount']) ||
+            (request.resource.data.haircutCount is int &&
+             request.resource.data.haircutCount >= 0 &&
+             request.resource.data.haircutCount <= resource.data.haircutCount + 1));
     }
 
     match /clientNotes/{userId} {
       allow read, write: if isAdmin();
     }
 
-    // 🚨 FIX 1: Fully open read access to stop the crash
     match /appointments/{apptId} {
-      allow read: if true; 
-      
-      allow create: if isAdmin() || isOwner(request.resource.data.userId);
+      // Bookings contain names/phones — only the owner and admins may read them.
+      // Public availability is served PII-free by /api/available-slots.
+      allow read: if isAdmin() || (request.auth != null && resource.data.userId == request.auth.uid);
+
+      allow create: if isAdmin() || (
+        isOwner(request.resource.data.userId)
+        && request.resource.data.status == 'pending'
+        && request.resource.data.usedReward == false
+        && request.resource.data.keys().hasOnly([
+             'userId', 'name', 'phone', 'services', 'totalDurationMins', 'stylist',
+             'date', 'time', 'status', 'sendsms', 'usedReward', 'specialRequests',
+             'referenceImage', 'isEmergency'])
+      );
+
       allow update: if isAdmin() || (
         isOwner(resource.data.userId) && (
-          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['referenceImage']) ||
+          changed().hasOnly(['referenceImage']) ||
           (
             resource.data.status == 'proposed' &&
             (
               (request.resource.data.status == 'confirmed' &&
-                request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'date', 'time', 'proposedDate', 'proposedTime'])) ||
+                changed().hasOnly(['status', 'date', 'time', 'proposedDate', 'proposedTime'])) ||
               (request.resource.data.status == 'cancelled' &&
-                request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status']))
+                changed().hasOnly(['status']))
             )
           )
         )
@@ -66,21 +102,29 @@ service cloud.firestore {
       allow read: if true;
       allow write: if isAdmin();
     }
-    
-    // 🚨 FIX 2: Fully open read access to stop the crash
+
     match /alerts/{alertId} {
-      allow read: if true;
-      allow write: if isAdmin() || isOwner(request.resource.data.userId);
+      allow read: if isAdmin() || (request.auth != null && resource.data.userId == request.auth.uid);
+      // Customers create an alert for themselves when accepting/declining a proposal.
+      allow create: if isAdmin() || isOwner(request.resource.data.userId);
+      allow update: if isAdmin() || (isOwner(resource.data.userId) && changed().hasOnly(['isRead']));
+      allow delete: if isAdmin() || isOwner(resource.data.userId);
     }
-    
+
     match /waitlist/{waitlistId} {
-      allow read: if true;
+      allow read: if isAdmin() || (request.auth != null && resource.data.userId == request.auth.uid);
       allow create: if isAdmin() || isOwner(request.resource.data.userId);
       allow update, delete: if isAdmin();
     }
+
     match /translations/{document=**} {
       allow read: if true;
       allow write: if isAdmin();
+    }
+
+    // consentLogs and anything else: server (Admin SDK) only.
+    match /{document=**} {
+      allow read, write: if false;
     }
   }
 }

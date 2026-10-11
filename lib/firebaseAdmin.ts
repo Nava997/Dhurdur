@@ -158,3 +158,28 @@ export async function listUsers(maxResults = 1000, pageToken?: string) {
   const auth = getAdminAuth();
   return auth.listUsers(maxResults, pageToken);
 }
+
+/**
+ * Server-side admin check for API routes. Mirrors isAdmin() in firestore.rules:
+ * an admin custom claim, a VERIFIED allow-listed email, or role 'admin' on the
+ * user's Firestore profile (which customers cannot set — see firestore.rules).
+ */
+export async function isAdminToken(decoded: {
+  uid: string;
+  admin?: unknown;
+  email?: string;
+  email_verified?: boolean;
+}): Promise<boolean> {
+  if (decoded.admin === true) return true;
+
+  const adminEmails = (process.env.NEXT_PUBLIC_ADMIN_EMAIL || '')
+    .split(',')
+    .map(e => e.trim().toLowerCase())
+    .filter(Boolean);
+  if (decoded.email_verified && decoded.email && adminEmails.includes(decoded.email.toLowerCase())) {
+    return true;
+  }
+
+  const snap = await getAdminDb().collection('users').doc(decoded.uid).get();
+  return snap.exists && snap.data()?.role === 'admin';
+}

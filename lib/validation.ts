@@ -26,9 +26,6 @@ export const emailRequestSchema = z.object({
   email: emailSchema,
   subject: z.string().min(1).max(200).transform(s => s.trim()),
   message: z.string().min(1).max(10000).transform(s => s.trim()),
-  // Optional: override from address for specific use cases
-  fromEmail: emailSchema.optional(),
-  fromName: z.string().max(100).transform(s => s.trim()).optional(),
 });
 
 export type EmailRequest = z.infer<typeof emailRequestSchema>;
@@ -44,10 +41,9 @@ export type TranslateRequest = z.infer<typeof translateRequestSchema>;
 // UI Translation API validation (larger payloads)
 export const translateUiRequestSchema = z.object({
   targetLang: z.enum(['en', 'es', 'fr', 'it', 'nl', 'tr', 'pl', 'ru', 'ar', 'zh', 'ja']),
-  sourceDict: z.record(z.unknown()).refine(
-    (dict) => JSON.stringify(dict).length < 100000, // Max 100KB
-    'Source dictionary too large (max 100KB)'
-  ),
+  // Ignored by the server (it translates its own trusted dictionary); still
+  // accepted so older cached clients don't fail validation.
+  sourceDict: z.unknown().optional(),
 });
 
 export type TranslateUiRequest = z.infer<typeof translateUiRequestSchema>;
@@ -162,8 +158,8 @@ export function createAuditLog(
 
 // Log audit entry (in production, send to logging service)
 export function logAudit(entry: AuditLogEntry): void {
-  // In production: send to Cloud Logging, Datadog, etc.
-  console.log('[AUDIT]', JSON.stringify(entry));
+  // console.info, not console.log: next.config strips console.log in production builds.
+  console.info('[AUDIT]', JSON.stringify(entry));
 }
 
 // getInternalHeaders function for API calls

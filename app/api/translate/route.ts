@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { timingSafeEqual } from 'crypto';
 import { validateRequest, translateRequestSchema, createAuditLog, logAudit } from '@/lib/validation';
 
 const DEEPL_API_KEY = process.env.DEEPL_API_KEY;
@@ -12,8 +13,13 @@ export async function POST(req: NextRequest) {
 
   try {
     // Verify internal API secret (Required since this is an Admin-only route)
-    const authHeader = req.headers.get('x-internal-secret');
-    if (process.env.INTERNAL_API_SECRET && authHeader !== process.env.INTERNAL_API_SECRET) {
+    // Fails closed: if INTERNAL_API_SECRET isn't configured the route is disabled
+    // instead of open to the internet (it spends the paid DeepL quota).
+    const authHeader = req.headers.get('x-internal-secret') || '';
+    const secret = process.env.INTERNAL_API_SECRET || '';
+    const secretOk = secret.length > 0 && authHeader.length === secret.length &&
+      timingSafeEqual(Buffer.from(authHeader), Buffer.from(secret));
+    if (!secretOk) {
       const auditLog = createAuditLog(req, undefined, undefined, 'translate', undefined, 'translation', false, 'Invalid internal API secret');
       logAudit(auditLog);
       return NextResponse.json({ error: 'Unauthorized request' }, { status: 401 });

@@ -1,7 +1,8 @@
 import 'server-only';
 import { NextRequest, NextResponse } from 'next/server';
 import nodemailer from 'nodemailer';
-import { adminAuth } from '@/lib/firebaseAdmin';
+import { adminAuth, isAdminToken } from '@/lib/firebaseAdmin';
+import { rateLimit } from '@/lib/rateLimit';
 import { validateRequest, emailRequestSchema, createAuditLog, logAudit } from '@/lib/validation';
 
 export async function POST(req: NextRequest) {
@@ -19,16 +20,22 @@ export async function POST(req: NextRequest) {
     }
 
     const idToken = authHeader.split('Bearer ')[1];
-    const decodedToken = await adminAuth.verifyIdToken(idToken);
-
-    if (!decodedToken) {
+    let decodedToken;
+    try {
+      decodedToken = await adminAuth.verifyIdToken(idToken);
+    } catch {
       const auditLog = createAuditLog(req, undefined, undefined, 'email_send', undefined, 'notification', false, 'Invalid token');
       logAudit(auditLog);
-      return NextResponse.json({ error: 'Unauthorized: Invalid token' }, { status: 403 });
+      return NextResponse.json({ error: 'Unauthorized: Invalid token' }, { status: 401 });
     }
 
     userId = decodedToken.uid;
-    userRole = decodedToken.admin ? 'admin' : 'user';
+    userRole = (await isAdminToken(decodedToken)) ? 'admin' : 'user';
+
+    // Shared across all server instances (the proxy limiter is per-instance).
+    if (userRole !== 'admin' && !(await rateLimit('email', userId, 10, 10 * 60 * 1000))) {
+      return NextResponse.json({ error: 'Too many requests' }, { status: 429 });
+    }
 
     // Validate request body
     const body = await req.json();
@@ -43,7 +50,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const { email, subject, message, fromEmail, fromName } = validation.data;
+    const { email, subject, message } = validation.data;
 
     // Non-admins may only trigger an email to their OWN verified address —
     // never an arbitrary third party. Admin notifications still go through
@@ -82,15 +89,24 @@ export async function POST(req: NextRequest) {
     // Sanitize inputs to prevent header injection
     const sanitizedSubject = subject.replace(/[\r\n]/g, ' ').trim();
     const sanitizedMessage = message.replace(/[\r\n]+/g, '\n').trim();
-    const sanitizedFromName = (fromName || 'Avdar').replace(/[\r\n]/g, ' ').trim();
+    // Escape before building the HTML part: messages contain customer-supplied
+    // text (names, special requests) that would otherwise be rendered as HTML
+    // in the salon's inbox.
+    const escapedHtml = sanitizedMessage
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;')
+      .replace(/\n/g, '<br>');
 
+    // Sender is always the salon's own mailbox, never caller-controlled.
     await transporter.sendMail({
-      from: `"${sanitizedFromName}" <${fromEmail || emailUser}>`,
+      from: `"Dhurdur" <${emailUser}>`,
       to: email,
       subject: sanitizedSubject,
       text: sanitizedMessage,
-      // HTML version for better formatting
-      html: sanitizedMessage.replace(/\n/g, '<br>'),
+      html: escapedHtml,
     });
 
     const auditLog = createAuditLog(req, userId, userRole, 'email_send', undefined, 'notification', true, undefined, {

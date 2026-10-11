@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { adminDb } from '../../../lib/firebaseAdmin';
+import { fallbackTranslations } from '@/lib/translations';
+import { rateLimit, clientIp } from '@/lib/rateLimit';
 import { validateRequest, translateUiRequestSchema, createAuditLog, logAudit } from '@/lib/validation';
 
 const DEEPL_API_KEY = process.env.DEEPL_API_KEY;
@@ -32,7 +34,7 @@ function flatten(obj: any, path: LeafPath = [], out: { path: LeafPath; text: str
   } else if (Array.isArray(obj)) {
     // CRITICAL FIX: Skip the images array entirely so we don't break image links
     if (path[path.length - 1] === 'images') return out;
-    
+
     obj.forEach((item, i) => flatten(item, [...path, String(i)], out));
   } else if (obj && typeof obj === 'object') {
     for (const key in obj) flatten(obj[key], [...path, key], out);
@@ -82,7 +84,13 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const { targetLang, sourceDict } = validation.data;
+    const { targetLang } = validation.data;
+
+    // SECURITY: always translate the server's own German dictionary. The
+    // result is cached in settings/translations and served to every visitor,
+    // so accepting a client-supplied sourceDict would let anyone rewrite the
+    // site's text for all users.
+    const sourceDict = fallbackTranslations.de;
 
     const deeplLang = LANG_CODE_MAP[targetLang];
     if (!deeplLang) {
@@ -92,6 +100,24 @@ export async function POST(req: NextRequest) {
         { error: `Language "${targetLang}" is not supported by DeepL` },
         { status: 400 }
       );
+    }
+
+    // Serve the cached translation if one exists (saves DeepL quota and
+    // stops anonymous visitors from burning it by re-requesting).
+    try {
+      const cached = await adminDb.doc('settings/translations').get();
+      const cachedDict = cached.exists ? cached.data()?.[targetLang] : undefined;
+      if (cachedDict && typeof cachedDict === 'object' && Object.keys(cachedDict).length > 0) {
+        return NextResponse.json({ success: true, translatedDict: cachedDict }, { status: 200 });
+      }
+    } catch (cacheReadError) {
+      console.error('Failed to read translation cache:', cacheReadError);
+    }
+
+    // Only reached on a cache miss (a real DeepL call), so this limit just
+    // stops anonymous visitors from draining the DeepL quota.
+    if (!(await rateLimit('translate-ui', clientIp(req), 5, 60 * 60 * 1000))) {
+      return NextResponse.json({ error: 'Too many requests' }, { status: 429 });
     }
 
     const leaves = flatten(sourceDict);
@@ -118,7 +144,7 @@ export async function POST(req: NextRequest) {
         console.error("DeepL Error:", errText);
         const auditLog = createAuditLog(req, userId, undefined, 'translate_ui', undefined, 'translation_cache', false, `DeepL API error: ${res.status}`, { error: errText });
         logAudit(auditLog);
-        return NextResponse.json({ error: `Translation service error: ${res.status}` }, { status: 502 });
+        return NextResponse.json({ error: 'Translation service unavailable' }, { status: 502 });
       }
 
       const data = await res.json();

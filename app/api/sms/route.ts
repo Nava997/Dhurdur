@@ -1,7 +1,8 @@
 import 'server-only';
 import { NextRequest, NextResponse } from 'next/server';
 import twilio from 'twilio';
-import { adminAuth, adminDb } from '@/lib/firebaseAdmin';
+import { adminAuth, adminDb, isAdminToken } from '@/lib/firebaseAdmin';
+import { rateLimit } from '@/lib/rateLimit';
 import { validateRequest, smsRequestSchema, createAuditLog, logAudit } from '@/lib/validation';
 
 export async function POST(req: NextRequest) {
@@ -19,16 +20,21 @@ export async function POST(req: NextRequest) {
     }
 
     const idToken = authHeader.split('Bearer ')[1];
-    const decodedToken = await adminAuth.verifyIdToken(idToken);
-
-    if (!decodedToken) {
+    let decodedToken;
+    try {
+      decodedToken = await adminAuth.verifyIdToken(idToken);
+    } catch {
       const auditLog = createAuditLog(req, undefined, undefined, 'sms_send', undefined, 'appointment', false, 'Invalid token');
       logAudit(auditLog);
-      return NextResponse.json({ error: 'Unauthorized: Invalid token' }, { status: 403 });
+      return NextResponse.json({ error: 'Unauthorized: Invalid token' }, { status: 401 });
     }
 
     userId = decodedToken.uid;
-    userRole = decodedToken.admin ? 'admin' : 'user';
+    userRole = (await isAdminToken(decodedToken)) ? 'admin' : 'user';
+
+    if (!(await rateLimit('sms', userId, userRole === 'admin' ? 60 : 5, 60 * 60 * 1000))) {
+      return NextResponse.json({ error: 'Too many requests' }, { status: 429 });
+    }
 
     // Validate request body
     const body = await req.json();
@@ -97,7 +103,7 @@ export async function POST(req: NextRequest) {
                    500;
 
     return NextResponse.json(
-      { error: status === 400 ? error.message : 'Failed to send SMS' },
+      { error: status === 400 ? 'Invalid phone number' : 'Failed to send SMS' },
       { status }
     );
   }

@@ -16,15 +16,15 @@ export default function ImpressumPage() {
     <main className="min-h-screen bg-black text-white px-6 md:px-8 py-24">
       <div className="max-w-2xl mx-auto">
         <Link href="/" className="text-xs uppercase tracking-widest text-zinc-500 hover:text-gold-400 transition-colors">
-          ← Back to Dhurdur
+          ← Zurück zu Dhurdur
         </Link>
 
         <h1 className="text-3xl md:text-4xl font-serif mt-6 mb-2">Impressum</h1>
 
         <div className="mb-12 p-4 border border-gold-700/60 bg-gold-900/20 text-gold-200 text-xs leading-relaxed">
-          The bracketed placeholders must be filled in with your real business details before this
-          site goes live — an incomplete Impressum is itself a legal risk under §5 DDG. Have a lawyer
-          or a service like eRecht24 verify the final text.
+          Die Angaben in eckigen Klammern müssen vor dem Livegang mit den echten Unternehmensdaten
+          ausgefüllt werden — ein unvollständiges Impressum ist ein Abmahnrisiko (§ 5 DDG). Den finalen
+          Text bitte von einem Anwalt oder einem Dienst wie eRecht24 prüfen lassen und diesen Hinweis entfernen.
         </div>
 
         <Section title="Angaben gemäß § 5 DDG">
@@ -47,15 +47,10 @@ export default function ImpressumPage() {
           <p>[Name und Anschrift der verantwortlichen Person]</p>
         </Section>
 
-        <Section title="EU-Streitschlichtung">
+        <Section title="Verbraucherstreitbeilegung">
           <p>
-            Die Europäische Kommission stellt eine Plattform zur Online-Streitbeilegung (OS) bereit:{" "}
-            <a href="https://ec.europa.eu/consumers/odr/" target="_blank" rel="noopener noreferrer" className="text-gold-400 underline">
-              https://ec.europa.eu/consumers/odr/
-            </a>
-            . Unsere E-Mail-Adresse finden Sie oben. Wir sind nicht bereit oder verpflichtet, an
-            Streitbeilegungsverfahren vor einer Verbraucherschlichtungsstelle teilzunehmen.
-            [Anpassen, falls dies nicht zutrifft.]
+            Wir sind nicht bereit oder verpflichtet, an Streitbeilegungsverfahren vor einer
+            Verbraucherschlichtungsstelle teilzunehmen. [Anpassen, falls dies nicht zutrifft.]
           </p>
         </Section>
       </div>

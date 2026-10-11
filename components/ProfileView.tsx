@@ -13,9 +13,9 @@ const countryCodes = [
 ];
 
 export function ProfileView() {
-  const { t, currentUser, appointments, addNotification, updateUserPassword, updateAppointmentStatus } = useApp();
+  const { t, currentUser, appointments, addNotification, requestPasswordOtp, updateUserPassword, updateAppointmentStatus } = useApp();
   const [activeTab, setActiveTab] = useState<'overview' | 'settings'>('overview');
-  
+
   const [editName, setEditName] = useState('');
   const [editEmail, setEditEmail] = useState('');
   const [editCountryCode, setEditCountryCode] = useState('+49');
@@ -25,7 +25,6 @@ export function ProfileView() {
   const [oldPass, setOldPass] = useState('');
   const [newPass, setNewPass] = useState('');
   const [confirmPass, setConfirmPass] = useState('');
-  const [generatedPassOTP, setGeneratedPassOTP] = useState('');
   const [inputPassOTP, setInputPassOTP] = useState('');
   const [isVerifyingPassOTP, setIsVerifyingPassOTP] = useState(false);
 
@@ -78,31 +77,22 @@ export function ProfileView() {
     e.preventDefault();
     if (newPass !== confirmPass) return addNotification("Passwords do not match.", "error");
     if (newPass.length < 8) return addNotification("Password must be at least 8 characters long.", "error");
-    
-    const otp = Math.floor(100000 + Math.random() * 900000).toString();
-    setGeneratedPassOTP(otp);
-    setIsVerifyingPassOTP(true);
-    
+    if (!/[A-Z]/.test(newPass) || !/[a-z]/.test(newPass) || !/[0-9]/.test(newPass) || !/[^A-Za-z0-9]/.test(newPass)) {
+      return addNotification("Password needs an uppercase letter, a lowercase letter, a number and a special character.", "error");
+    }
+
     try {
-      const token = auth.currentUser ? await auth.currentUser.getIdToken() : '';
-      await fetch('/api/email', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify({
-          email: currentUser.email,
-          subject: "Dhurdur: Password Change Confirmation",
-          message: `Hi ${currentUser.name},\n\nYour confirmation code for the password change is: ${otp}\n\nIf you did not request this change, please ignore this email.\n\nThe Dhurdur Team`
-        })
-      });
+      await requestPasswordOtp();
+      setIsVerifyingPassOTP(true);
       addNotification("Confirmation code sent to your email!", "info");
-    } catch (err) { addNotification("Error sending code.", "error"); setIsVerifyingPassOTP(false); }
+    } catch (err: any) { addNotification(err.message || "Error sending code.", "error"); }
   };
 
   const handleVerifyPassOTP = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (inputPassOTP !== generatedPassOTP) return addNotification("Invalid code. Please try again.", "error");
+    if (!/^\d{6}$/.test(inputPassOTP)) return addNotification("Invalid code. Please try again.", "error");
     try {
-      await updateUserPassword(oldPass, newPass);
+      await updateUserPassword(oldPass, newPass, inputPassOTP);
       setOldPass(''); setNewPass(''); setConfirmPass(''); setInputPassOTP(''); setIsVerifyingPassOTP(false);
       setShowForcePasswordModal(false);
     } catch (err: any) {
@@ -126,13 +116,13 @@ export function ProfileView() {
 
   return (
     <div className="min-h-screen pt-28 md:pt-32 px-4 md:px-6 max-w-4xl mx-auto animate-in fade-in duration-500 pb-20 relative">
-      
+
       {showForcePasswordModal && (
         <div className="fixed inset-0 z-100 flex items-center justify-center bg-black/90 backdrop-blur-md p-4">
           <div className="p-8 md:p-10 border  shadow-2xl w-full max-w-md animate-in zoom-in-95 duration-300 bg-black border-white/20">
             <h3 className="text-2xl font-bold mb-2 uppercase text-red-400">{secTrans.title}</h3>
             <p className="text-zinc-400 text-sm mb-6 leading-relaxed">{secTrans.desc}</p>
-            
+
             {!isVerifyingPassOTP ? (
               <form onSubmit={handleSendPassOTP} className="space-y-4">
                  <div>
@@ -286,7 +276,7 @@ export function ProfileView() {
                     <div key={a.id} className={`p-5 border  ${bgBorder}`}>
                       <p className="font-bold text-base">{sList}</p>
                       <p className="text-xs text-zinc-400 mb-3">{a.date} {t.common?.at || 'um'} {a.time} {t.common?.by || 'bei'} {a.stylist} ({a.totalDurationMins || 60} {t.services?.min || 'Minuten'})</p>
-                      
+
                       {a.status === 'proposed' ? (
                         <div className="mt-3 p-3 bg-blue-500/10 border border-blue-500/30 ">
                           <p className="text-blue-400 text-xs font-bold mb-2">⚠️ {t.profile?.newProposal || "Neuer Terminvorschlag vom Salon:"}</p>

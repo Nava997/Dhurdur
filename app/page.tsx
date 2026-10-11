@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
+import Link from 'next/link';
 import { motion, Variants } from 'framer-motion';
 import { useApp } from '@/context/AppContext';
 import { NotificationBell } from '@/components/NotificationBell';
@@ -8,6 +9,7 @@ import { LanguageSelector } from '@/components/LanguageSelector';
 import { ProfileView } from '@/components/ProfileView';
 import { DataExportButton } from '@/components/DataExport';
 import { DeleteAccountButton, AccountDeletionModal } from '@/components/AccountDeletion';
+import { useCookieConsent } from '@/components/CookieConsent';
 
 // --- Shared Animation Variants ---
 const staggerContainer: Variants = {
@@ -598,6 +600,7 @@ function AdminDashboard({ onLogout, onPreviewSite }: { onLogout: () => void; onP
 // ==========================================
 function MainWebsite({ onEnterAdmin }: { onEnterAdmin: () => void }) {
   const { currentUser, isAdminAuth, loginEmail, registerEmail, loginOAuth, resetPassword, logout, servicesDB, stylistsDB, generalSettings, t, lang } = useApp();
+  const { resetConsent } = useCookieConsent();
   const [scrolled, setScrolled] = useState(false);
   const [activeSection, setActiveSection] = useState("");
   const [showClientAuth, setShowClientAuth] = useState(false);
@@ -912,7 +915,7 @@ function MainWebsite({ onEnterAdmin }: { onEnterAdmin: () => void }) {
             alt=""
             className="w-full h-full object-cover opacity-20"
           />
-          <div className="absolute inset-0 bg-linear-to-brom-black via-black/85 to-black"></div>
+          <div className="absolute inset-0 bg-linear-to-b from-black via-black/85 to-black"></div>
         </div>
         <div className="relative z-10 max-w-7xl mx-auto px-8">
         <motion.div
@@ -951,7 +954,7 @@ function MainWebsite({ onEnterAdmin }: { onEnterAdmin: () => void }) {
               </div>
               <div className="flex items-baseline gap-2 pl-12 sm:pl-0">
                 <span className="text-zinc-500 text-sm">{t.services?.from || "From"}</span>
-                <span className="text-3xl md:text-4xl font-serif text-white">${service.price}</span>
+                <span className="text-3xl md:text-4xl font-serif text-white">€{service.price}</span>
               </div>
             </motion.div>
           ))}
@@ -985,7 +988,7 @@ function MainWebsite({ onEnterAdmin }: { onEnterAdmin: () => void }) {
               transition={{ duration: 0.8, type: "spring", bounce: 0.4, delay: idx * 0.1 }}
               className="overflow-hidden"
             >
-              <motion.img whileHover={{ scale: 1.2, rotate: idx % 2 === 0 ? 3 : -3 }} transition={{ duration: 0.8, type: "spring" }} src={src} alt={`Gallery ${idx}`} className="w-full h-64 object-cover" />
+              <motion.img whileHover={{ scale: 1.2, rotate: idx % 2 === 0 ? 3 : -3 }} transition={{ duration: 0.8, type: "spring" }} src={src} alt={`Dhurdur ${t.gallery?.title || "Gallery"} ${idx + 1}`} className="w-full h-64 object-cover" />
             </motion.div>
           ))}
         </div>
@@ -1174,11 +1177,14 @@ function MainWebsite({ onEnterAdmin }: { onEnterAdmin: () => void }) {
           </motion.div>
         </div>
 
-                <div className="max-w-7xl mx-auto relative z-10 mt-16 pt-8 border-t border-zinc-900 text-xs text-zinc-600 flex flex-col sm:flex-row items-center justify-between gap-4">
+        <div className="max-w-7xl mx-auto relative z-10 mt-16 pt-8 border-t border-zinc-900 text-xs text-zinc-600 flex flex-col sm:flex-row items-center justify-between gap-4">
           <span>© {new Date().getFullYear()} Dhurdur. {t.footerSection?.allRightsReserved || "All rights reserved."}</span>
-          <div className="flex gap-4 uppercase tracking-widest">
-            <a href="/impressum" className="hover:text-gold-400 transition-colors">Impressum</a>
-            <a href="/privacy" className="hover:text-gold-400 transition-colors">Privacy</a>
+          <div className="flex flex-wrap justify-center gap-4 uppercase tracking-widest">
+            <Link href="/impressum" className="hover:text-gold-400 transition-colors">Impressum</Link>
+            <Link href="/privacy" className="hover:text-gold-400 transition-colors">{lang === 'de' ? 'Datenschutz' : 'Privacy'}</Link>
+            <button onClick={resetConsent} className="uppercase tracking-widest hover:text-gold-400 transition-colors">
+              {lang === 'de' ? 'Cookie-Einstellungen' : 'Cookie Settings'}
+            </button>
           </div>
         </div>
       </footer>
@@ -1346,7 +1352,7 @@ function ClientAuthModal({ onClose, loginEmail, registerEmail, loginOAuth, reset
 // 6. BOOKING FORM (real slots + submission)
 // ==========================================
 function BookingForm({ servicesDB, stylistsDB }: { servicesDB: any[]; stylistsDB: any[] }) {
-  const { currentUser, getAvailableSlots, addAppointment, addNotification, t } = useApp();
+  const { currentUser, getAvailableSlots, addAppointment, addNotification, t, lang } = useApp();
   const [service, setService] = useState('');
   const [stylist, setStylist] = useState('Any');
   const [date, setDate] = useState('');
@@ -1410,7 +1416,7 @@ function BookingForm({ servicesDB, stylistsDB }: { servicesDB: any[]; stylistsDB
           <label className="block text-zinc-400 text-sm mb-4">{t.booking?.time || "Time"}</label>
           <select value={time} onChange={e => setTime(e.target.value)} disabled={!date} className="w-full bg-black border border-zinc-800 p-4 text-white focus:outline-none focus:border-gold-500 disabled:opacity-40">
             <option value="">{date ? (t.common?.selectTime || 'Select a time') : (t.booking?.pickDateFirst || 'Pick a date first')}</option>
-            {slots.map(s => <option key={s.id} value={s.time} disabled={s.isBooked}>{s.time}{s.isBooked ? ' (booked)' : ''}</option>)}
+            {slots.map(s => <option key={s.id} value={s.time} disabled={s.isBooked}>{s.time}{s.isBooked ? (lang === 'de' ? ' (belegt)' : ' (booked)') : ''}</option>)}
           </select>
         </div>
       </div>

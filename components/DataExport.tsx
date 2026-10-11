@@ -14,6 +14,7 @@ interface ExportData {
   profile: Record<string, unknown> | null;
   appointments: Record<string, unknown>[];
   alerts: Record<string, unknown>[];
+  waitlist: Record<string, unknown>[];
   exportedAt: string;
   version: string;
 }
@@ -25,10 +26,10 @@ export function DataExportButton() {
 
   const handleExport = async () => {
     if (!currentUser) return;
-    
+
     setIsExporting(true);
     setExportProgress('Loading profile...');
-    
+
     try {
       // 1. Get user profile
       const userRef = doc(db, 'users', currentUser.id);
@@ -36,26 +37,30 @@ export function DataExportButton() {
       const profile = userSnap.exists() ? { id: userSnap.id, ...userSnap.data() } : null;
 
       setExportProgress('Loading appointments...');
-      
+
       // 2. Get appointments
       const apptsQuery = query(collection(db, 'appointments'), where('userId', '==', currentUser.id));
       const apptsSnap = await getDocs(apptsQuery);
       const appointments = apptsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
 
       setExportProgress('Loading notifications...');
-      
+
       // 3. Get alerts
       const alertsQuery = query(collection(db, 'alerts'), where('userId', '==', currentUser.id));
       const alertsSnap = await getDocs(alertsQuery);
       const alerts = alertsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
 
+      const waitlistSnap = await getDocs(query(collection(db, 'waitlist'), where('userId', '==', currentUser.id)));
+      const waitlist = waitlistSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+
       setExportProgress('Export vorbereiten...');
-      
+
       // 4. Compile export data
       const exportData: ExportData = {
         profile,
         appointments,
         alerts,
+        waitlist,
         exportedAt: new Date().toISOString(),
         version: '1.0',
       };
@@ -64,7 +69,7 @@ export function DataExportButton() {
       const jsonString = JSON.stringify(exportData, null, 2);
       const blob = new Blob([jsonString], { type: 'application/json' });
       const url = URL.createObjectURL(blob);
-      
+
       const link = document.createElement('a');
       link.href = url;
       link.download = `Dhurdur-datenexport-${currentUser.id}-${new Date().toISOString().split('T')[0]}.json`;
@@ -75,7 +80,7 @@ export function DataExportButton() {
 
       setExportProgress('');
       addNotification('Datenexport erfolgreich heruntergeladen!', 'success');
-      
+
     } catch (error: any) {
       console.error('Export failed:', error);
       addNotification(`Export fehlgeschlagen: ${error.message}`, 'error');
@@ -122,7 +127,7 @@ export function DataExportModal({ isOpen, onClose }: { isOpen: boolean; onClose:
 
   const loadData = useCallback(async () => {
     if (!currentUser) return;
-    
+
     setIsExporting(true);
     try {
       const userRef = doc(db, 'users', currentUser.id);
@@ -136,15 +141,18 @@ export function DataExportModal({ isOpen, onClose }: { isOpen: boolean; onClose:
       const alertsQuery = query(collection(db, 'alerts'), where('userId', '==', currentUser.id));
       const alertsSnap = await getDocs(alertsQuery);
       const alerts = alertsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+      const waitlistSnap = await getDocs(query(collection(db, 'waitlist'), where('userId', '==', currentUser.id)));
+      const waitlist = waitlistSnap.docs.map(d => ({ id: d.id, ...d.data() }));
 
       const data: ExportData = {
         profile,
         appointments,
         alerts,
+        waitlist,
         exportedAt: new Date().toISOString(),
         version: '1.0',
       };
-      
+
       setExportData(data);
       setPreviewJson(JSON.stringify(data, null, 2));
     } catch (error: any) {
@@ -160,11 +168,11 @@ export function DataExportModal({ isOpen, onClose }: { isOpen: boolean; onClose:
 
   const handleDownload = () => {
     if (!exportData) return;
-    
+
     const jsonString = JSON.stringify(exportData, null, 2);
     const blob = new Blob([jsonString], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
-    
+
     const link = document.createElement('a');
     link.href = url;
     link.download = `Dhurdur-datenexport-${currentUser?.id}-${new Date().toISOString().split('T')[0]}.json`;
@@ -172,7 +180,7 @@ export function DataExportModal({ isOpen, onClose }: { isOpen: boolean; onClose:
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
-    
+
     addNotification('Datenexport heruntergeladen!', 'success');
   };
 

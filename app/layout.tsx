@@ -4,8 +4,8 @@ import { AppProvider } from '@/context/AppContext'
 import { CookieConsentProvider, CookieConsentBanner } from '@/components/CookieConsent'
 
 export const metadata: Metadata = {
-  title: 'Dhurdur | Preview',
-  description: 'Where Style Meets Craft',
+  title: 'Dhurdur | Barbershop Schweinfurt',
+  description: 'Dhurdur Barbershop in Schweinfurt — Haarschnitt, Fade, Bart & Rasur. Jetzt online Termin buchen.',
 }
 
 export default function RootLayout({
@@ -14,7 +14,7 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <html lang="en" className="scroll-smooth">
+    <html lang="de" className="scroll-smooth">
       <body>
         <CookieConsentProvider>
           <AppProvider>

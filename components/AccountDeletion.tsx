@@ -2,10 +2,8 @@
 
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
-import { auth } from '../lib/firebase';
-import { deleteUser, EmailAuthProvider, reauthenticateWithCredential } from 'firebase/auth';
-import { doc, deleteDoc, collection, getDocs, query, where, writeBatch } from 'firebase/firestore';
-import { db } from '../lib/firebase';
+import { auth, getGoogleProvider, getFacebookProvider } from '../lib/firebase';
+import { EmailAuthProvider, reauthenticateWithCredential, reauthenticateWithPopup } from 'firebase/auth';
 
 /**
  * Account Deletion Component (Art. 17 DSGVO - Right to Erasure)
@@ -36,6 +34,8 @@ export function AccountDeletionModal({ isOpen, onClose }: { isOpen: boolean; onC
   const [showFinalConfirm, setShowFinalConfirm] = useState(false);
 
   const REQUIRED_CONFIRMATION = 'DELETE MY ACCOUNT PERMANENTLY';
+  // Google/Facebook accounts have no password; they re-confirm via their provider popup.
+  const usesPassword = !!auth.currentUser?.providerData.some(p => p.providerId === 'password');
 
   const handleNext = async () => {
     if (step === 0) {
@@ -49,7 +49,7 @@ export function AccountDeletionModal({ isOpen, onClose }: { isOpen: boolean; onC
       setStep(1);
     } else if (step === 1) {
       // Step 2: Password verification
-      if (!password) {
+      if (usesPassword && !password) {
         setError('Please enter your password');
         return;
       }
@@ -70,8 +70,8 @@ export function AccountDeletionModal({ isOpen, onClose }: { isOpen: boolean; onC
       // Update steps
       const updateStepStatus = (id: string, status: DeletionStep['status']) => {
         setStep(prev => {
-          const steps = DELETION_STEPS.map(s => 
-            s.id === id ? { ...s, status } : 
+          const steps = DELETION_STEPS.map(s =>
+            s.id === id ? { ...s, status } :
             (prev > DELETION_STEPS.indexOf(s) ? { ...s, status: 'completed' } : s)
           );
           return steps.findIndex(s => s.id === id);
@@ -80,49 +80,53 @@ export function AccountDeletionModal({ isOpen, onClose }: { isOpen: boolean; onC
 
       // Step: Re-authenticate
       updateStepStatus('reauth', 'current');
-      const credential = EmailAuthProvider.credential(currentUser.email!, password);
-      await reauthenticateWithCredential(auth.currentUser, credential);
+      if (usesPassword) {
+        const credential = EmailAuthProvider.credential(auth.currentUser.email || currentUser.email, password);
+        await reauthenticateWithCredential(auth.currentUser, credential);
+      } else {
+        const isFacebook = auth.currentUser.providerData.some(p => p.providerId === 'facebook.com');
+        await reauthenticateWithPopup(auth.currentUser, isFacebook ? getFacebookProvider() : getGoogleProvider());
+      }
 
-      // Step: Delete Firestore data
+      // Step: Delete all data + the auth account server-side. Customers can't
+      // delete appointments via Firestore rules, and staff notes, waitlist
+      // entries and uploaded photos aren't reachable from the client at all.
       updateStepStatus('reauth', 'completed');
       updateStepStatus('firestore', 'current');
-      
-      const batch = writeBatch(db);
-      
-      // Delete appointments
-      const apptsQuery = query(collection(db, 'appointments'), where('userId', '==', currentUser.id));
-      const apptsSnap = await getDocs(apptsQuery);
-      apptsSnap.docs.forEach(d => batch.delete(d.ref));
-      
-      // Delete alerts
-      const alertsQuery = query(collection(db, 'alerts'), where('userId', '==', currentUser.id));
-      const alertsSnap = await getDocs(alertsQuery);
-      alertsSnap.docs.forEach(d => batch.delete(d.ref));
-      
-      // Delete user profile
-      batch.delete(doc(db, 'users', currentUser.id));
-      
-      await batch.commit();
 
-      // Step: Delete Firebase Auth user
+      const token = await auth.currentUser.getIdToken(true);
+      const res = await fetch('/api/account/delete', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw Object.assign(new Error(data.error || 'Server error'), {
+          code: data.error === 'requires-recent-login' ? 'auth/requires-recent-login' : undefined,
+        });
+      }
+
       updateStepStatus('firestore', 'completed');
       updateStepStatus('auth', 'current');
-      
-      await deleteUser(auth.currentUser);
 
       // Complete
       updateStepStatus('auth', 'completed');
       updateStepStatus('complete', 'current');
-      
+
       addNotification('Your account and all data have been permanently deleted.', 'info');
       logout();
       onClose();
-      
+
     } catch (err: any) {
       console.error('Deletion failed:', err);
-      
+
       let errorMsg = 'Deletion failed. ';
-      if (err.code === 'auth/wrong-password') {
+      if (err.code === 'auth/popup-closed-by-user' || err.code === 'auth/cancelled-popup-request') {
+        setError(null);
+        setIsDeleting(false);
+        return;
+      }
+      if (err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential') {
         errorMsg += 'Incorrect password.';
       } else if (err.code === 'auth/requires-recent-login') {
         errorMsg += 'Please log in again and try again.';
@@ -131,7 +135,7 @@ export function AccountDeletionModal({ isOpen, onClose }: { isOpen: boolean; onC
       } else {
         errorMsg += err.message;
       }
-      
+
       setError(errorMsg);
       setIsDeleting(false);
     }
@@ -244,7 +248,14 @@ export function AccountDeletionModal({ isOpen, onClose }: { isOpen: boolean; onC
             )}
 
             {/* Step 1: Password Verification */}
-            {step === 1 && !isDeleting && (
+            {step === 1 && !isDeleting && !usesPassword && (
+              <div>
+                <p className="text-sm text-zinc-400 mb-4">
+                  For security, please confirm with your Google/Facebook sign-in.
+                </p>
+              </div>
+            )}
+            {step === 1 && !isDeleting && usesPassword && (
               <div>
                 <p className="text-sm text-zinc-400 mb-4">
                   For security, please re-enter your password.
@@ -300,7 +311,7 @@ export function AccountDeletionModal({ isOpen, onClose }: { isOpen: boolean; onC
             </button>
             <button
               onClick={handleNext}
-              disabled={isDeleting || (step === 0 && confirmText !== REQUIRED_CONFIRMATION) || (step === 1 && !password)}
+              disabled={isDeleting || (step === 0 && confirmText !== REQUIRED_CONFIRMATION) || (step === 1 && usesPassword && !password)}
               className={`flex-1 py-3 font-bold uppercase tracking-widest text-sm rounded-lg transition-colors disabled:opacity-50 ${
                 step === DELETION_STEPS.length - 1
                   ? 'bg-gray-600 text-zinc-400 cursor-not-allowed'
