@@ -168,6 +168,33 @@ test('cron cleanup: with the secret deletes only expired data', async () => {
   assert.equal((await db.doc('consentLogs/c-new').get()).exists, true, 'recent consent log kept');
 });
 
+// ---------------- Cloudinary uploads ----------------
+test('cloudinary sign: login required, purpose checked', async () => {
+  assert.equal((await api('/api/cloudinary/sign', { method: 'POST', body: { purpose: 'reference' } })).status, 401);
+  assert.equal((await api('/api/cloudinary/sign', { method: 'POST', token: T.alice, body: { purpose: 'avatar' } })).status, 400);
+});
+test('cloudinary sign: customers can only sign their own reference folder', async () => {
+  assert.equal((await api('/api/cloudinary/sign', { method: 'POST', token: T.alice, body: { purpose: 'gallery' } })).status, 403);
+  assert.equal((await api('/api/cloudinary/sign', { method: 'POST', token: T.mallory, body: { purpose: 'gallery' } })).status, 403);
+  const r = await api('/api/cloudinary/sign', { method: 'POST', token: T.alice, body: { purpose: 'reference', folder: 'dhurdur/gallery' } });
+  if (r.status === 503) return; // Cloudinary not configured in this run
+  assert.equal(r.status, 200);
+  assert.equal(r.json.folder, 'dhurdur/reference/alice', 'caller cannot choose the folder');
+  assert.ok(r.json.signature && !('api_secret' in r.json) && !('apiSecret' in r.json), 'secret never returned');
+});
+test('cloudinary sign: admins can sign site folders', async () => {
+  const r = await api('/api/cloudinary/sign', { method: 'POST', token: T.staff, body: { purpose: 'gallery' } });
+  assert.ok([200, 503].includes(r.status));
+  if (r.status === 200) assert.equal(r.json.folder, 'dhurdur/gallery');
+});
+test('cloudinary delete: admin only, site folders only', async () => {
+  const url = 'https://res.cloudinary.com/a2x0mlwu/image/upload/v1/dhurdur/reference/alice/x.jpg';
+  assert.equal((await api('/api/cloudinary/delete', { method: 'POST', body: { url } })).status, 401);
+  assert.equal((await api('/api/cloudinary/delete', { method: 'POST', token: T.alice, body: { url } })).status, 403);
+  assert.equal((await api('/api/cloudinary/delete', { method: 'POST', token: T.staff, body: { url } })).status, 400, 'customer photos cannot be deleted this way');
+  assert.equal((await api('/api/cloudinary/delete', { method: 'POST', token: T.staff, body: { url: 'https://evil.example.com/a.jpg' } })).status, 400);
+});
+
 // ---------------- Password change ----------------
 test('password: code request needs login', async () => {
   assert.equal((await api('/api/password/otp', { method: 'POST' })).status, 401);

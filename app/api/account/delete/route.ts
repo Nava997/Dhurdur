@@ -1,9 +1,9 @@
 import 'server-only';
 import { NextRequest, NextResponse } from 'next/server';
-import { getStorage } from 'firebase-admin/storage';
 import { adminAuth, adminDb, getAdminAuth } from '@/lib/firebaseAdmin';
 import { createAuditLog, logAudit } from '@/lib/validation';
 import { rateLimit } from '@/lib/rateLimit';
+import { deleteUserImages } from '@/lib/cloudinary';
 
 // Art. 17 GDPR (right to erasure). Runs server-side because customers are
 // (correctly) not allowed to delete appointment records via Firestore rules,
@@ -52,13 +52,10 @@ export async function POST(req: NextRequest) {
     await adminDb.collection('clientNotes').doc(uid).delete();
     await adminDb.collection('users').doc(uid).delete();
 
-    const bucketName = process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET;
-    if (bucketName) {
-      try {
-        await getStorage().bucket(bucketName).deleteFiles({ prefix: `reference-images/${uid}/` });
-      } catch (storageErr) {
-        console.error('[account-delete] storage cleanup failed:', storageErr);
-      }
+    try {
+      await deleteUserImages(uid);
+    } catch (imageErr) {
+      console.error('[account-delete] reference image cleanup failed:', imageErr);
     }
 
     await getAdminAuth().deleteUser(uid);

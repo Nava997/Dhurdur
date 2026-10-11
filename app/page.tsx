@@ -10,6 +10,8 @@ import { ProfileView } from '@/components/ProfileView';
 import { DataExportButton } from '@/components/DataExport';
 import { DeleteAccountButton, AccountDeletionModal } from '@/components/AccountDeletion';
 import { useCookieConsent } from '@/components/CookieConsent';
+import { ImageUploadButton } from '@/components/ImageUploadButton';
+import { deleteSiteImage } from '@/lib/uploadImage';
 
 // --- Shared Animation Variants ---
 const staggerContainer: Variants = {
@@ -92,8 +94,8 @@ function AdminDashboard({ onLogout, onPreviewSite }: { onLogout: () => void; onP
   const {
     appointments, usersDB, clientNotesDB, stylistsDB, waitlist, generalSettings, currentUser,
     updateAppointmentStatus, addAdminAppointment, addService, deleteService,
-    addStylist, deleteStylist, updateGeneralSettings, notifyWaitlist, removeFromWaitlist, updateUserNotes, t, lang,
-    getTranslatedServices, getTranslatedStylists
+    addStylist, deleteStylist, updateStylist, updateGeneralSettings, notifyWaitlist, removeFromWaitlist, updateUserNotes, t, lang,
+    getTranslatedServices, getTranslatedStylists, productsDB, addProduct, deleteProduct
   } = useApp();
 
   const translatedServices = getTranslatedServices();
@@ -130,11 +132,31 @@ function AdminDashboard({ onLogout, onPreviewSite }: { onLogout: () => void; onP
     setNewService({ name: '', price: '', durationMins: 45 });
   };
 
-  const [newStylist, setNewStylist] = useState({ name: '', services: '' });
+  const [newStylist, setNewStylist] = useState({ name: '', services: '', photoURL: '' });
   const submitStylist = async () => {
     if (!newStylist.name) return;
-    await addStylist({ name: newStylist.name, services: newStylist.services.split(',').map(s => s.trim()).filter(Boolean) });
-    setNewStylist({ name: '', services: '' });
+    await addStylist({
+      name: newStylist.name, services: newStylist.services.split(',').map(s => s.trim()).filter(Boolean),
+      ...(newStylist.photoURL ? { photoURL: newStylist.photoURL } : {}),
+    });
+    setNewStylist({ name: '', services: '', photoURL: '' });
+  };
+
+  const [newProduct, setNewProduct] = useState({ name: '', desc: '', price: '', stockCount: '', image: '' });
+  const submitProduct = async () => {
+    if (!newProduct.name || !newProduct.price || !newProduct.image) return;
+    const stock = parseInt(newProduct.stockCount, 10);
+    await addProduct({
+      name: newProduct.name, desc: newProduct.desc, price: newProduct.price, image: newProduct.image,
+      ...(Number.isFinite(stock) ? { stockCount: stock } : {}),
+    });
+    setNewProduct({ name: '', desc: '', price: '', stockCount: '', image: '' });
+  };
+
+  const galleryImages = generalSettings.galleryImages || [];
+  const removeGalleryImage = async (url: string) => {
+    await updateGeneralSettings({ galleryImages: galleryImages.filter(u => u !== url) });
+    deleteSiteImage(url);
   };
 
   const [walkinWait, setWalkinWait] = useState(generalSettings.walkinWaitTime);
@@ -281,7 +303,14 @@ function AdminDashboard({ onLogout, onPreviewSite }: { onLogout: () => void; onP
                 <tr key={row.id} className="hover:bg-zinc-900/30 transition-colors">
                   <td className="px-6 py-4 text-zinc-500">{row.id.slice(0, 6)}</td>
                   <td className="px-6 py-4 text-zinc-300">{row.date} • {row.time}</td>
-                  <td className="px-6 py-4">{row.name}</td>
+                  <td className="px-6 py-4">
+                    {row.name}
+                    {row.referenceImage && (
+                      <a href={row.referenceImage} target="_blank" rel="noopener noreferrer" className="block text-xs text-gold-300 hover:text-white transition-colors mt-1">
+                        {t.admin?.refImage || 'Reference Image:'} ↗
+                      </a>
+                    )}
+                  </td>
                   <td className="px-6 py-4 text-zinc-400">{row.services.join(', ')}</td>
                   <td className="px-6 py-4">
                     <span className={`px-2 py-1 text-xs border ${row.status === 'confirmed' ? 'border-green-900 text-green-500' : row.status === 'cancelled' ? 'border-red-900 text-red-500' : 'border-zinc-800 text-zinc-500'}`}>
@@ -425,7 +454,14 @@ function AdminDashboard({ onLogout, onPreviewSite }: { onLogout: () => void; onP
         <p className="text-zinc-400">{t.admin?.dash?.teamSubtitle || "Masters and barbers who take appointments."}</p>
       </motion.div>
 
-      <motion.div variants={slideUpItem} className="border border-zinc-700 bg-zinc-950 p-6 grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+      <motion.div variants={slideUpItem} className="border border-zinc-700 bg-zinc-950 p-6 grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+        <div className="flex items-center gap-3">
+          {newStylist.photoURL && (
+            // eslint-disable-next-line @next/next/no-img-element -- Cloudinary URL; next/image would need the host allow-listed
+            <img src={newStylist.photoURL} alt="" className="w-12 h-12 object-cover border border-zinc-800" />
+          )}
+          <ImageUploadButton purpose="stylist" onUploaded={url => setNewStylist(s => ({ ...s, photoURL: url }))} label={newStylist.photoURL ? (t.admin?.dash?.changePhoto || 'Change photo') : undefined} className="w-full" />
+        </div>
         <div>
           <label className="block text-zinc-400 text-xs uppercase tracking-widest mb-2">{t.admin?.dash?.nameLbl || "Name"}</label>
           <input value={newStylist.name} onChange={e => setNewStylist({ ...newStylist, name: e.target.value })} className="w-full bg-black border border-zinc-800 p-3 text-sm focus:outline-none focus:border-gold-500" />
@@ -443,9 +479,76 @@ function AdminDashboard({ onLogout, onPreviewSite }: { onLogout: () => void; onP
         {stylistsDB.length === 0 && <p className="text-zinc-600">{t.admin?.dash?.noTeamYet || "No team members yet — add one above."}</p>}
         {stylistsDB.map((s) => (
           <motion.div key={s.id} variants={slideUpItem} className="border border-zinc-900 bg-black p-6">
+            {s.photoURL ? (
+              // eslint-disable-next-line @next/next/no-img-element -- Cloudinary URL; next/image would need the host allow-listed
+              <img src={s.photoURL} alt={s.name} className="w-full h-48 object-cover mb-4 border border-zinc-900" />
+            ) : (
+              <div className="w-full h-48 mb-4 border border-dashed border-zinc-800 flex items-center justify-center text-zinc-600 text-sm">{t.admin?.dash?.noPhoto || 'No photo'}</div>
+            )}
             <h3 className="text-lg font-serif mb-1">{s.name}</h3>
             <p className="text-zinc-500 text-sm mb-4">{s.services.join(', ') || (t.admin?.dash?.noSpecialties || 'No specialties listed')}</p>
-            <button onClick={() => deleteStylist(s.id)} className="text-zinc-500 hover:text-red-500 text-sm transition-colors">{t.admin?.dash?.removeBtn || "Remove"}</button>
+            <div className="flex items-center justify-between gap-3">
+              <ImageUploadButton purpose="stylist" onUploaded={url => updateStylist(s.id, { photoURL: url })} label={s.photoURL ? (t.admin?.dash?.changePhoto || 'Change photo') : undefined} className="px-3 py-2 text-xs" />
+              <button onClick={() => deleteStylist(s.id)} className="text-zinc-500 hover:text-red-500 text-sm transition-colors">{t.admin?.dash?.removeBtn || "Remove"}</button>
+            </div>
+          </motion.div>
+        ))}
+      </motion.div>
+    </motion.div>
+  );
+
+  const inputCls = "w-full bg-black border border-zinc-800 p-3 text-sm focus:outline-none focus:border-gold-500";
+  const renderProducts = () => (
+    <motion.div key="products" initial="hidden" animate="show" exit="hidden" variants={staggerContainer} className="space-y-8">
+      <motion.div variants={slideUpItem}>
+        <h1 className="text-4xl font-serif mb-2 gold-shine-text inline-block">{t.admin?.dash?.productsTitle || "Products"}</h1>
+        <p className="text-zinc-400">{t.admin?.dash?.productsSubtitle || "Products shown in the store section of the website."}</p>
+      </motion.div>
+
+      <motion.div variants={slideUpItem} className="border border-zinc-700 bg-zinc-950 p-6 space-y-4">
+        <h3 className="text-lg font-serif">{t.admin?.products?.addTitle || "Add Product"}</h3>
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 items-end">
+          <div className="sm:col-span-2">
+            <label className="block text-zinc-400 text-xs uppercase tracking-widest mb-2">{t.admin?.dash?.nameLbl || "Name"}</label>
+            <input value={newProduct.name} onChange={e => setNewProduct({ ...newProduct, name: e.target.value })} className={inputCls} />
+          </div>
+          <div>
+            <label className="block text-zinc-400 text-xs uppercase tracking-widest mb-2">{t.admin?.products?.price || "Price (€)"}</label>
+            <input value={newProduct.price} onChange={e => setNewProduct({ ...newProduct, price: e.target.value })} placeholder="25" className={inputCls} />
+          </div>
+          <div>
+            <label className="block text-zinc-400 text-xs uppercase tracking-widest mb-2">{t.admin?.products?.initialStock || "Initial Stock"}</label>
+            <input type="number" min={0} value={newProduct.stockCount} onChange={e => setNewProduct({ ...newProduct, stockCount: e.target.value })} className={inputCls} />
+          </div>
+          <div className="sm:col-span-2 md:col-span-4">
+            <label className="block text-zinc-400 text-xs uppercase tracking-widest mb-2">{t.admin?.products?.descDe || "Description"}</label>
+            <textarea value={newProduct.desc} onChange={e => setNewProduct({ ...newProduct, desc: e.target.value })} rows={2} className={inputCls} />
+          </div>
+          <div className="sm:col-span-2 md:col-span-4 flex items-center gap-4">
+            {newProduct.image && (
+              // eslint-disable-next-line @next/next/no-img-element -- Cloudinary URL; next/image would need the host allow-listed
+              <img src={newProduct.image} alt="" className="w-16 h-16 object-cover border border-zinc-800" />
+            )}
+            <ImageUploadButton purpose="product" onUploaded={url => setNewProduct(p => ({ ...p, image: url }))} label={newProduct.image ? (t.admin?.dash?.changePhoto || 'Change photo') : (t.admin?.products?.uploadImg || 'Upload Product Image')} />
+          </div>
+          <button onClick={submitProduct} disabled={!newProduct.name || !newProduct.price || !newProduct.image} className="sm:col-span-2 md:col-span-4 gold-shine-btn text-black px-6 py-3 uppercase tracking-widest text-sm transition-colors font-medium disabled:opacity-40">
+            {t.admin?.products?.saveBtn || "Save Product"}
+          </button>
+        </div>
+      </motion.div>
+
+      <motion.div variants={staggerContainer} className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
+        {productsDB.length === 0 && <p className="text-zinc-600">{t.admin?.dash?.noProductsYet || "No products yet — add one above."}</p>}
+        {productsDB.map(p => (
+          <motion.div key={p.id} variants={slideUpItem} className="border border-zinc-900 bg-black">
+            {/* eslint-disable-next-line @next/next/no-img-element -- Cloudinary URL; next/image would need the host allow-listed */}
+            <img src={p.image} alt={p.name} className="w-full h-48 object-cover" />
+            <div className="p-6 space-y-1">
+              <h3 className="text-lg font-serif">{p.name}</h3>
+              <p className="text-zinc-300 text-sm">€{p.price}{typeof p.stockCount === 'number' && <span className="text-zinc-500"> · {t.admin?.products?.stockLabel || 'Stock'}: {p.stockCount}</span>}</p>
+              {p.desc && <p className="text-zinc-500 text-sm">{p.desc}</p>}
+              <button onClick={() => deleteProduct(p.id)} className="text-zinc-500 hover:text-red-500 text-sm transition-colors pt-2">{t.admin?.dash?.deleteBtn || "Delete"}</button>
+            </div>
           </motion.div>
         ))}
       </motion.div>
@@ -513,6 +616,25 @@ function AdminDashboard({ onLogout, onPreviewSite }: { onLogout: () => void; onP
         </div>
       </motion.div>
 
+      <motion.div variants={slideUpItem} className="border border-zinc-900 bg-black p-8 space-y-6">
+        <h3 className="text-xl font-serif border-b border-zinc-900 pb-4">{t.admin?.dash?.galleryTitle || "Gallery"}</h3>
+        <p className="text-zinc-500 text-sm">{t.admin?.dash?.galleryDesc || "Photos for the Our Work section on the homepage. Sample photos are shown until you add your own."}</p>
+        {galleryImages.length > 0 && (
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            {galleryImages.map(url => (
+              <div key={url} className="relative border border-zinc-900">
+                {/* eslint-disable-next-line @next/next/no-img-element -- Cloudinary URL; next/image would need the host allow-listed */}
+                <img src={url} alt="" className="w-full h-28 object-cover" />
+                <button onClick={() => removeGalleryImage(url)} className="absolute inset-x-0 bottom-0 bg-black/80 text-xs uppercase tracking-widest py-2 text-red-400 hover:text-red-300 transition-colors">
+                  {t.admin?.dash?.removePhoto || 'Remove'}
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+        <ImageUploadButton purpose="gallery" onUploaded={url => updateGeneralSettings({ galleryImages: [...galleryImages, url] })} />
+      </motion.div>
+
       <motion.div variants={slideUpItem} className="border border-zinc-900 bg-black p-8 space-y-4">
         <h3 className="text-xl font-serif border-b border-zinc-900 pb-4">{t.admin?.dash?.businessProfileTitle || "Business Profile"}</h3>
         <p className="text-zinc-500 text-sm">{t.admin?.dash?.businessProfileDesc || "Business name, contact email, and address are set in the site template itself (in the code) rather than here — let me know if you'd like these editable from this panel too."}</p>
@@ -520,7 +642,7 @@ function AdminDashboard({ onLogout, onPreviewSite }: { onLogout: () => void; onP
     </motion.div>
   );
 
-  const tabKeys = ['Dashboard', 'Appointments', 'Clients', 'Team', 'Waitlist', 'Services', 'Settings'];
+  const tabKeys = ['Dashboard', 'Appointments', 'Clients', 'Team', 'Waitlist', 'Services', 'Products', 'Settings'];
   const tabLabels: Record<string, string> = {
     Dashboard: t.admin?.dashboardTabs?.dashboard || 'Dashboard',
     Appointments: t.admin?.dashboardTabs?.appointments || 'Appointments',
@@ -528,6 +650,7 @@ function AdminDashboard({ onLogout, onPreviewSite }: { onLogout: () => void; onP
     Team: t.admin?.dashboardTabs?.team || 'Team',
     Waitlist: t.admin?.dashboardTabs?.waitlist || 'Waitlist',
     Services: t.admin?.dashboardTabs?.services || 'Services',
+    Products: t.admin?.dashboardTabs?.products || 'Products',
     Settings: t.admin?.dashboardTabs?.settings || 'Settings',
   };
 
@@ -591,6 +714,7 @@ function AdminDashboard({ onLogout, onPreviewSite }: { onLogout: () => void; onP
         {activeTab === 'Team' && renderTeam()}
         {activeTab === 'Waitlist' && renderWaitlist()}
         {activeTab === 'Services' && renderServices()}
+        {activeTab === 'Products' && renderProducts()}
         {activeTab === 'Settings' && renderSettings()}
       </div>
     </motion.div>
@@ -601,9 +725,13 @@ function AdminDashboard({ onLogout, onPreviewSite }: { onLogout: () => void; onP
 // 4. MAIN WEBSITE
 // ==========================================
 function MainWebsite({ onEnterAdmin }: { onEnterAdmin: () => void }) {
-  const { currentUser, isAdminAuth, loginEmail, registerEmail, loginOAuth, resetPassword, logout, servicesDB, stylistsDB, generalSettings, t, lang } = useApp();
+  const { currentUser, isAdminAuth, loginEmail, registerEmail, loginOAuth, resetPassword, logout, servicesDB, stylistsDB, productsDB, generalSettings, t, lang, getTranslatedStylists } = useApp();
   const { resetConsent } = useCookieConsent();
   const [scrolled, setScrolled] = useState(false);
+  // Once the salon uploads stylist photos (admin → Team) they replace the sample team.
+  const teamWithPhotos = getTranslatedStylists()
+    .filter(s => s.photoURL)
+    .map(s => ({ name: s.name, img: s.photoURL as string, role: s.services.join(' · ') }));
 
   const [activeSection, setActiveSection] = useState("");
   const [showClientAuth, setShowClientAuth] = useState(false);
@@ -982,12 +1110,12 @@ function MainWebsite({ onEnterAdmin }: { onEnterAdmin: () => void }) {
           {t.gallery?.title || "Gallery"}
         </motion.h2>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          {[
+          {(generalSettings.galleryImages?.length ? generalSettings.galleryImages : [
             "https://images.unsplash.com/photo-1585747860715-2ba37e788b70?q=80&w=800&auto=format&fit=crop",
             "https://images.unsplash.com/photo-1503951914875-452162b0f3f1?q=80&w=800&auto=format&fit=crop",
             "https://images.unsplash.com/photo-1621605815971-fbc98d665033?q=80&w=800&auto=format&fit=crop",
             "https://images.unsplash.com/photo-1593702295094-aea22597af65?q=80&w=800&auto=format&fit=crop"
-          ].map((src, idx) => (
+          ]).map((src, idx) => (
             <motion.div 
               key={idx} 
               initial={{ opacity: 0, scale: 0.5, y: 50 }}
@@ -1014,13 +1142,14 @@ function MainWebsite({ onEnterAdmin }: { onEnterAdmin: () => void }) {
           {t.team?.title || "The Team"}
         </motion.h2>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-6">
-          {[
+          {(teamWithPhotos.length ? teamWithPhotos : [
             { name: "Oliver Hayes", img: "https://images.unsplash.com/photo-1618077360395-f3068be8e001?q=80&w=800&auto=format&fit=crop" },
             { name: "Sophia Bennett", img: "https://images.unsplash.com/photo-1595959183082-7b570b7e08e2?q=80&w=800&auto=format&fit=crop" },
             { name: "Marcus Steele", img: "https://images.unsplash.com/photo-1560250097-0b93528c311a?q=80&w=800&auto=format&fit=crop" },
-          ].map((member, idx) => {
-            const roleFallback = idx === 0 ? "Master" : idx === 1 ? "Master Barber" : "Senior Barber";
-            const translatedMember = t.team?.members?.[idx];
+          ] as { name: string; img: string; role?: string }[]).map((member, idx) => {
+            const roleFallback = member.role || (idx === 0 ? "Master" : idx === 1 ? "Master Barber" : "Senior Barber");
+            // Sample members use the translated sample names/roles; real stylists show their own.
+            const translatedMember = teamWithPhotos.length ? undefined : t.team?.members?.[idx];
             return (
             <motion.div 
               key={idx} 
@@ -1044,6 +1173,48 @@ function MainWebsite({ onEnterAdmin }: { onEnterAdmin: () => void }) {
           })}
         </div>
       </section>
+
+      {/* STORE SECTION — only shown once the salon adds products (admin → Products) */}
+      {productsDB.length > 0 && (
+        <section id="products" className="py-24 px-8 max-w-7xl mx-auto overflow-hidden scroll-mt-24">
+          <motion.h2
+            initial={{ opacity: 0, y: 100 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: false, margin: "-100px" }}
+            transition={{ duration: 1.5, type: "spring" }}
+            className="text-5xl md:text-6xl font-serif mb-4 gold-shine-text inline-block"
+          >
+            {t.products?.title || "Store & Products"}
+          </motion.h2>
+          <p className="text-zinc-400 mb-12">{t.products?.subtitle || "Professional care for home"}</p>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {productsDB.map((p, idx) => (
+              <motion.div
+                key={p.id}
+                initial={{ opacity: 0, y: 100 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: false, margin: "-50px" }}
+                transition={{ duration: 0.8, type: "spring", bounce: 0.3, delay: idx * 0.15 }}
+                whileHover={{ y: -15 }}
+                className="border border-zinc-900 overflow-hidden group"
+              >
+                <div className="h-72 w-full overflow-hidden">
+                  {/* eslint-disable-next-line @next/next/no-img-element -- Cloudinary URL; next/image would need the host allow-listed */}
+                  <img src={p.image} alt={p.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" />
+                </div>
+                <div className="p-6 relative">
+                  <div className="flex justify-between items-baseline gap-4 mb-1">
+                    <h3 className="text-xl font-serif">{p.name}</h3>
+                    <span className="text-gold-300">€{p.price}</span>
+                  </div>
+                  {p.desc && <p className="text-zinc-500 text-sm">{p.desc}</p>}
+                  {p.stockCount === 0 && <p className="text-red-500 text-xs uppercase tracking-widest mt-2">{lang === 'de' ? 'Ausverkauft' : 'Sold out'}</p>}
+                </div>
+              </motion.div>
+            ))}
+          </div>
+        </section>
+      )}
 
       {/* THE NUMBERS SECTION */}
       <section className="relative py-24 overflow-hidden">
@@ -1364,6 +1535,7 @@ function BookingForm({ servicesDB, stylistsDB }: { servicesDB: ServiceItem[]; st
   const [date, setDate] = useState('');
   const [time, setTime] = useState('');
   const [notes, setNotes] = useState('');
+  const [referenceImage, setReferenceImage] = useState('');
   const [submitted, setSubmitted] = useState(false);
 
   const chosenService = servicesDB.find(s => s.name === service);
@@ -1377,6 +1549,7 @@ function BookingForm({ servicesDB, stylistsDB }: { servicesDB: ServiceItem[]; st
       services: [service], totalDurationMins: duration, stylist,
       date, time, status: 'pending', sendsms: true, usedReward: false,
       specialRequests: notes || undefined,
+      referenceImage: referenceImage || undefined,
     });
     setSubmitted(true);
   };
@@ -1430,6 +1603,20 @@ function BookingForm({ servicesDB, stylistsDB }: { servicesDB: ServiceItem[]; st
       <div>
         <label className="block text-zinc-400 text-sm mb-4">{t.booking?.requestsLabel || "Special Requests / Notes (Optional)"}</label>
         <textarea value={notes} onChange={e => setNotes(e.target.value)} rows={3} className="w-full bg-black border border-zinc-800 p-4 text-white focus:outline-none focus:border-gold-500" />
+      </div>
+
+      <div>
+        <label className="block text-zinc-400 text-sm mb-2">{t.booking?.refImage || "Reference Image (Optional)"}</label>
+        <p className="text-zinc-600 text-xs mb-4">{t.booking?.refImageHint || "Show us the look you want (JPG/PNG, max 15 MB)."}</p>
+        {referenceImage ? (
+          <div className="flex items-center gap-4">
+            {/* eslint-disable-next-line @next/next/no-img-element -- Cloudinary URL; next/image would need the host allow-listed */}
+            <img src={referenceImage} alt="" className="w-24 h-24 object-cover border border-zinc-800" />
+            <button type="button" onClick={() => setReferenceImage('')} className="text-zinc-500 hover:text-red-500 text-sm transition-colors">{t.booking?.refImageRemove || "Remove image"}</button>
+          </div>
+        ) : (
+          <ImageUploadButton purpose="reference" onUploaded={setReferenceImage} />
+        )}
       </div>
 
       <button

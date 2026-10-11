@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { timingSafeEqual } from 'crypto';
-import { getStorage } from 'firebase-admin/storage';
+import { deleteImages, publicIdFromUrl } from '@/lib/cloudinary';
 import { adminDb } from '@/lib/firebaseAdmin';
 
 // GDPR storage-limitation cleanup (Art. 5(1)(e)): purges old appointments,
@@ -69,19 +69,14 @@ export async function GET(req: NextRequest) {
     .where('date', '<', appointmentCutoff.toISOString().split('T')[0])
     .get();
   const expiredAppointments = appointmentsSnap.docs.filter(d => ['cancelled', 'confirmed', 'blocked', 'pending', 'proposed'].includes(d.data().status));
-  // Reference images live at reference-images/{userId}/{appointmentId}/ and go with their appointment.
-  const bucketName = process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET;
-  if (bucketName) {
-    const bucket = getStorage().bucket(bucketName);
-    for (const d of expiredAppointments) {
-      const { userId, referenceImage } = d.data();
-      if (!referenceImage || !userId) continue;
-      try {
-        await bucket.deleteFiles({ prefix: `reference-images/${userId}/${d.id}/` });
-      } catch (err) {
-        console.error('[cron-cleanup] reference image delete failed:', d.id, err);
-      }
-    }
+  // Customer reference photos (Cloudinary) go with their appointment.
+  const referenceIds = expiredAppointments
+    .map(d => publicIdFromUrl(d.data().referenceImage))
+    .filter((id): id is string => id !== null);
+  try {
+    await deleteImages(referenceIds);
+  } catch (err) {
+    console.error('[cron-cleanup] reference image delete failed:', err);
   }
   const deletedAppointments = await deleteDocs(expiredAppointments);
 

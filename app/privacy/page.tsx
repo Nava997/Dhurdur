@@ -108,12 +108,14 @@ export default function PrivacyPolicy() {
           </p>
         </Section>
 
-        <Section title="5. Referenzbilder (Firebase Storage)">
+        <Section title="5. Referenzbilder (Cloudinary)">
           <p>
             Optional können Sie bei der Buchung ein Referenzbild hochladen (z. B. Haarstil-Vorlage).
-            Das Bild wird in Firebase Storage gespeichert (EU-Region, falls Bucket in EU).
-            EXIF-Metadaten werden beim Upload entfernt. Das Bild wird nur mit Ihrem Termin verknüpft
-            und nach 3 Jahren (mit dem Termin) gelöscht. Rechtsgrundlage: Art. 6 Abs. 1 lit. b DSGVO.
+            Das Bild wird vor dem Hochladen in Ihrem Browser verkleinert; dabei werden alle
+            EXIF-Metadaten (z. B. GPS-Standort, Kameradaten) entfernt. Gespeichert wird es beim
+            Bilddienst Cloudinary in einem nur Ihrem Konto zugeordneten Ordner. Das Bild ist nur mit
+            Ihrem Termin verknüpft, wird mit dem Termin nach 3 Jahren oder sofort bei Löschung Ihres
+            Kontos entfernt. Rechtsgrundlage: Art. 6 Abs. 1 lit. b DSGVO.
           </p>
         </Section>
 
@@ -137,9 +139,10 @@ export default function PrivacyPolicy() {
 
         <Section title="8. Auftragsverarbeiter">
           <ul className="list-disc list-inside space-y-1">
-            <li><strong>Google Cloud / Firebase</strong> (Auth, Firestore, Storage, Analytics) — EU (europe-west1/3), AVV ✅, SCC ✅</li>
+            <li><strong>Google Cloud / Firebase</strong> (Auth, Firestore, Analytics) — EU (europe-west1/3), AVV ✅, SCC ✅</li>
             <li><strong>Google (Gmail/Workspace)</strong> (Transaktions-E-Mails) — EU/USA, AVV ✅, SCC ✅</li>
             <li><strong>DeepL SE</strong> (Übersetzung) — Deutschland, EU, AVV ✅, DSGVO direkt</li>
+            <li><strong>Cloudinary Ltd.</strong> (Bildspeicherung: Referenzbilder, Website-Fotos) — Israel/USA, AVV (DPA), SCC</li>
             <li><strong>Vercel</strong> (Hosting) — USA mit EU Edge, AVV ✅, SCC ✅</li>
           </ul>
           <p className="mt-2 text-sm">

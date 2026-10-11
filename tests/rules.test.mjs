@@ -160,6 +160,20 @@ test("customer cannot touch someone else's booking or delete bookings", async ()
   await assertFails(updateDoc(doc(bob(), 'appointments/a1'), { referenceImage: 'x' }));
   await assertFails(deleteDoc(doc(alice(), 'appointments/a1')));
 });
+test("reference photo must be in the customer's own Cloudinary folder", async () => {
+  const base = 'https://res.cloudinary.com/a2x0mlwu/image/upload/v1712345678/dhurdur/reference';
+  await assertSucceeds(setDoc(doc(alice(), 'appointments/ref-ok'), validBooking('alice', { referenceImage: `${base}/alice/abc_123.jpg` })));
+  await assertSucceeds(updateDoc(doc(alice(), 'appointments/a1'), { referenceImage: `${base}/alice/xyz.jpg` }));
+  for (const bad of [
+    `${base}/bob/abc.jpg`,                                                            // someone else's folder
+    'https://res.cloudinary.com/othercloud/image/upload/dhurdur/reference/alice/a.jpg', // another account
+    'https://evil.example.com/alice/a.jpg',                                           // arbitrary site
+    'javascript:alert(1)',
+  ]) {
+    await assertFails(setDoc(doc(alice(), 'appointments/ref-bad'), validBooking('alice', { referenceImage: bad })));
+    await assertFails(updateDoc(doc(alice(), 'appointments/a1'), { referenceImage: bad }));
+  }
+});
 test('admin can confirm and delete bookings', async () => {
   await assertSucceeds(updateDoc(doc(emailAdmin(), 'appointments/a1'), { status: 'confirmed' }));
   await assertSucceeds(deleteDoc(doc(roleAdmin(), 'appointments/b1')));

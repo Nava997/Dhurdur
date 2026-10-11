@@ -2,6 +2,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { auth, db, getGoogleProvider } from '../lib/firebase';
 import { fallbackTranslations, type TranslationData } from '../lib/translations';
+import { deleteSiteImage } from '../lib/uploadImage';
 export { fallbackTranslations };
 import { signInWithPopup, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged, sendPasswordResetEmail, EmailAuthProvider, reauthenticateWithCredential } from 'firebase/auth';
 import { doc, setDoc, collection, onSnapshot, addDoc, updateDoc, deleteDoc, getDoc, DocumentReference, query, where } from 'firebase/firestore';
@@ -25,8 +26,8 @@ export type Appointment = {
 export type WaitlistItem = { id: string; userId: string; name: string; phone: string; date: string; stylist: string; createdAt: number; };
 
 // Phase 4 Dynamic Management Types
-export type StylistItem = { id: string; name: string; services: string[] };
-export type GeneralSettings = { walkinWaitTime: string; holidays: string[] };
+export type StylistItem = { id: string; name: string; services: string[]; photoURL?: string };
+export type GeneralSettings = { walkinWaitTime: string; holidays: string[]; galleryImages?: string[] };
 
 export type Alert = { id: string; userId: string; message: string; isRead: boolean; link: Page; createdAt: number };
 export type ServiceItem = { id: string; name: string; price: string; oldPrice?: string; durationMins: number };
@@ -66,6 +67,7 @@ export interface AppContextType {
   updateProductStock: (id: string, newStock: number) => Promise<void>;
   // Phase 4 Dynamic Actions
   stylistsDB: StylistItem[]; addStylist: (s: Omit<StylistItem, 'id'>) => Promise<void>; deleteStylist: (id: string) => Promise<void>;
+  updateStylist: (id: string, changes: Partial<Omit<StylistItem, 'id'>>) => Promise<void>;
   generalSettings: GeneralSettings; updateGeneralSettings: (settings: Partial<GeneralSettings>) => Promise<void>;
   waitlist: WaitlistItem[]; addToWaitlist: (item: Omit<WaitlistItem, 'id' | 'createdAt'>) => Promise<void>; removeFromWaitlist: (id: string) => Promise<void>; notifyWaitlist: (item: WaitlistItem) => Promise<void>; resendConfirmation: (id: string) => Promise<void>;
   notifications: Notification[]; addNotification: (msg: string, type?: 'success' | 'info' | 'error') => void;
@@ -675,7 +677,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const deleteService = async (id: string) => { await deleteDoc(doc(db, 'services', id)); addNotification("Deleted.", 'info'); };
 
   const addProduct = async (p: Omit<ProductItem, 'id'>) => { await addDoc(collection(db, 'products'), p); addNotification("Added!", 'success'); };
-  const deleteProduct = async (id: string) => { await deleteDoc(doc(db, 'products', id)); addNotification("Deleted.", 'info'); };
+  const deleteProduct = async (id: string) => {
+    const image = productsDB.find(p => p.id === id)?.image;
+    await deleteDoc(doc(db, 'products', id));
+    deleteSiteImage(image);
+    addNotification("Deleted.", 'info');
+  };
 
   const updateProductStock = async (id: string, newStock: number) => {
     if (!isAdminAuth) return;
@@ -684,10 +691,22 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   // Phase 4 Stylist & Settings Updates
   const addStylist = async (s: Omit<StylistItem, 'id'>) => { await addDoc(collection(db, 'stylists'), s); addNotification("Stylist gespeichert!", 'success'); };
-  const deleteStylist = async (id: string) => { await deleteDoc(doc(db, 'stylists', id)); addNotification("Stylist entfernt.", 'info'); };
+  const deleteStylist = async (id: string) => {
+    const photo = stylistsDB.find(s => s.id === id)?.photoURL;
+    await deleteDoc(doc(db, 'stylists', id));
+    deleteSiteImage(photo);
+    addNotification("Stylist entfernt.", 'info');
+  };
+  const updateStylist = async (id: string, changes: Partial<Omit<StylistItem, 'id'>>) => {
+    const oldPhoto = stylistsDB.find(s => s.id === id)?.photoURL;
+    await updateDoc(doc(db, 'stylists', id), changes);
+    if (changes.photoURL !== undefined && oldPhoto !== changes.photoURL) deleteSiteImage(oldPhoto);
+    addNotification("Stylist gespeichert!", 'success');
+  };
   const updateGeneralSettings = async (settings: Partial<GeneralSettings>) => {
     if (!isAdminAuth) return;
-    await updateDoc(doc(db, 'settings', 'general'), settings);
+    // merge: settings/general may not exist yet on a fresh project.
+    await setDoc(doc(db, 'settings', 'general'), settings, { merge: true });
     addNotification("Einstellungen gespeichert!", 'success');
   };
 
@@ -731,7 +750,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       servicesDB, addService, deleteService, productsDB, addProduct, deleteProduct, updateProductStock,
       appointments, addAppointment, addAdminAppointment, updateAppointmentStatus, notifications, addNotification, getAvailableSlots,
       waitlist, addToWaitlist, removeFromWaitlist, notifyWaitlist, resendConfirmation,
-      stylistsDB, addStylist, deleteStylist, generalSettings, updateGeneralSettings,
+      stylistsDB, addStylist, deleteStylist, updateStylist, generalSettings, updateGeneralSettings,
       alerts, markAlertRead, clearAlerts,
       getTranslatedServices, getTranslatedStylists, getTranslatedGeneralSettings
     }}>

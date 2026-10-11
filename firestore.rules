@@ -28,6 +28,17 @@ service cloud.firestore {
       return request.resource.data.diff(resource.data).affectedKeys();
     }
 
+    // A customer's reference photo must be an image in their own folder of the
+    // salon's Cloudinary account (see /api/cloudinary/sign), never an arbitrary link.
+    function validReferenceImage(data) {
+      return !('referenceImage' in data) || (
+        data.referenceImage is string &&
+        data.referenceImage.matches(
+          '^https://res[.]cloudinary[.]com/a2x0mlwu/image/upload/(v[0-9]+/)?dhurdur/reference/' +
+          request.auth.uid + '/[A-Za-z0-9_-]+[.](jpg|jpeg|png|webp)$')
+      );
+    }
+
     match /users/{userId} {
       allow read: if isOwnerOrAdmin(userId);
       allow delete: if isAdmin();
@@ -67,11 +78,12 @@ service cloud.firestore {
              'userId', 'name', 'phone', 'services', 'totalDurationMins', 'stylist',
              'date', 'time', 'status', 'sendsms', 'usedReward', 'specialRequests',
              'referenceImage', 'isEmergency'])
+        && validReferenceImage(request.resource.data)
       );
 
       allow update: if isAdmin() || (
         isOwner(resource.data.userId) && (
-          changed().hasOnly(['referenceImage']) ||
+          (changed().hasOnly(['referenceImage']) && validReferenceImage(request.resource.data)) ||
           (
             resource.data.status == 'proposed' &&
             (
