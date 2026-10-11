@@ -71,6 +71,9 @@ export interface AppContextType {
   notifications: Notification[]; addNotification: (msg: string, type?: 'success' | 'info' | 'error') => void;
   alerts: Alert[]; markAlertRead: (id: string) => Promise<void>; clearAlerts: () => Promise<void>;
   getAvailableSlots: (date: string, stylist: string, requiredDuration?: number) => TimeSlot[];
+  getTranslatedServices: () => ServiceItem[];
+  getTranslatedStylists: () => StylistItem[];
+  getTranslatedGeneralSettings: () => GeneralSettings;
 }
 
 
@@ -692,6 +695,37 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const t = translations[lang] || fallbackTranslations[lang] || fallbackTranslations.de;
 
+  // Translated admin-managed content. The server (/api/translate-ui) builds
+  // these from Firestore itself; entries are matched by id so adding or
+  // removing a service never shifts names onto the wrong item, and anything
+  // not yet translated falls back to the German original.
+  const getTranslatedServices = () => {
+    const list: any[] = Array.isArray(translations[lang]?.dynamicServices) ? translations[lang].dynamicServices : [];
+    if (lang === 'de' || list.length === 0) return servicesDB;
+    return servicesDB.map(s => {
+      const ts = list.find(x => x?.id === s.id);
+      return ts?.name ? { ...s, name: ts.name } : s;
+    });
+  };
+
+  // Stylist names are never translated (they're stored on bookings and used
+  // for availability matching); only their specialties are.
+  const getTranslatedStylists = () => {
+    const list: any[] = Array.isArray(translations[lang]?.dynamicStylists) ? translations[lang].dynamicStylists : [];
+    if (lang === 'de' || list.length === 0) return stylistsDB;
+    return stylistsDB.map(s => {
+      const ts = list.find(x => x?.id === s.id);
+      return Array.isArray(ts?.services) ? { ...s, services: ts.services } : s;
+    });
+  };
+
+  const getTranslatedGeneralSettings = () => {
+    const walkin = translations[lang]?.generalSettings?.walkinWaitTime;
+    return lang !== 'de' && typeof walkin === 'string' && walkin
+      ? { ...generalSettings, walkinWaitTime: walkin }
+      : generalSettings;
+  };
+
   return (
     <AppContext.Provider value={{
       lang, setLang, changeLanguage, isTranslatingUI, page, setPage: setPageRouter, t, updateTranslation,
@@ -700,7 +734,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       appointments, addAppointment, addAdminAppointment, updateAppointmentStatus, notifications, addNotification, getAvailableSlots,
       waitlist, addToWaitlist, removeFromWaitlist, notifyWaitlist, resendConfirmation,
       stylistsDB, addStylist, deleteStylist, generalSettings, updateGeneralSettings,
-      alerts, markAlertRead, clearAlerts
+      alerts, markAlertRead, clearAlerts,
+      getTranslatedServices, getTranslatedStylists, getTranslatedGeneralSettings
     }}>
       {children}
     </AppContext.Provider>

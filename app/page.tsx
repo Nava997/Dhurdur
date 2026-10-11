@@ -96,7 +96,11 @@ function AdminDashboard({ onLogout, onPreviewSite }: { onLogout: () => void; onP
     appointments, usersDB, clientNotesDB, servicesDB, stylistsDB, waitlist, generalSettings, currentUser,
     updateAppointmentStatus, addAdminAppointment, addService, deleteService,
     addStylist, deleteStylist, updateGeneralSettings, notifyWaitlist, removeFromWaitlist, updateUserNotes, t, lang,
+    getTranslatedServices, getTranslatedStylists
   } = useApp();
+
+  const translatedServices = getTranslatedServices();
+  const translatedStylists = getTranslatedStylists();
 
   const todayStr = new Date().toISOString().split('T')[0];
   const todaysAppts = appointments.filter(a => a.date === todayStr && a.status !== 'cancelled');
@@ -111,11 +115,11 @@ function AdminDashboard({ onLogout, onPreviewSite }: { onLogout: () => void; onP
   const [showBookingForm, setShowBookingForm] = useState(false);
   const submitWalkIn = async () => {
     if (!newBooking.name || !newBooking.service) return;
-    const service = servicesDB.find(s => s.name === newBooking.service);
+    const service = translatedServices.find(s => s.name === newBooking.service);
     await addAdminAppointment({
       userId: 'walk-in', name: newBooking.name, phone: newBooking.phone,
       services: [newBooking.service], totalDurationMins: service?.durationMins || 45,
-      stylist: newBooking.stylist || (stylistsDB[0]?.name || 'Any'),
+      stylist: newBooking.stylist || (translatedStylists[0]?.name || 'Any'),
       date: newBooking.date, time: newBooking.time, status: 'confirmed', sendsms: false, usedReward: false,
     });
     setShowBookingForm(false);
@@ -235,11 +239,11 @@ function AdminDashboard({ onLogout, onPreviewSite }: { onLogout: () => void; onP
             <input placeholder={t.admin?.dash?.phonePh || "Phone"} value={newBooking.phone} onChange={e => setNewBooking({ ...newBooking, phone: e.target.value })} className="bg-black border border-zinc-800 p-3 text-sm focus:outline-none focus:border-gold-500" />
             <select value={newBooking.service} onChange={e => setNewBooking({ ...newBooking, service: e.target.value })} className="bg-black border border-zinc-800 p-3 text-sm text-zinc-300 focus:outline-none focus:border-gold-500">
               <option value="">{t.admin?.dash?.selectServicePh || "Select service…"}</option>
-              {servicesDB.map(s => <option key={s.id} value={s.name}>{s.name}</option>)}
+              {translatedServices.map(s => <option key={s.id} value={s.name}>{s.name}</option>)}
             </select>
             <select value={newBooking.stylist} onChange={e => setNewBooking({ ...newBooking, stylist: e.target.value })} className="bg-black border border-zinc-800 p-3 text-sm text-zinc-300 focus:outline-none focus:border-gold-500">
               <option value="">{t.admin?.dash?.anyMasterPh || "Any master"}</option>
-              {stylistsDB.map(s => <option key={s.id} value={s.name}>{s.name}</option>)}
+              {translatedStylists.map(s => <option key={s.id} value={s.name}>{s.name}</option>)}
             </select>
             <input type="date" value={newBooking.date} onChange={e => setNewBooking({ ...newBooking, date: e.target.value })} className="bg-black border border-zinc-800 p-3 text-sm focus:outline-none focus:border-gold-500" />
             <input type="time" value={newBooking.time} onChange={e => setNewBooking({ ...newBooking, time: e.target.value })} className="bg-black border border-zinc-800 p-3 text-sm focus:outline-none focus:border-gold-500" />
@@ -256,7 +260,7 @@ function AdminDashboard({ onLogout, onPreviewSite }: { onLogout: () => void; onP
           <input type="text" value={apptSearch} onChange={e => setApptSearch(e.target.value)} placeholder={t.admin?.dash?.searchPh || "Search client or ID..."} className="bg-transparent border border-zinc-800 px-4 py-2 text-sm text-white focus:outline-none focus:border-gold-500 transition-colors w-full sm:w-64" />
           <select value={apptFilter} onChange={e => setApptFilter(e.target.value)} className="bg-transparent border border-zinc-800 px-4 py-2 text-sm text-zinc-400 focus:outline-none focus:text-white w-full sm:w-auto">
             <option value="">{t.admin?.dash?.allMasters || "All Masters"}</option>
-            {stylistsDB.map(s => <option key={s.id} value={s.name}>{s.name}</option>)}
+            {translatedStylists.map(s => <option key={s.id} value={s.name}>{s.name}</option>)}
           </select>
         </div>
         <div className="overflow-x-auto">
@@ -396,10 +400,10 @@ function AdminDashboard({ onLogout, onPreviewSite }: { onLogout: () => void; onP
               </tr>
             </thead>
             <tbody className="divide-y divide-zinc-900">
-              {servicesDB.length === 0 && (
+              {translatedServices.length === 0 && (
                 <tr><td colSpan={4} className="px-6 py-8 text-center text-zinc-600">{t.admin?.dash?.noServicesYet || "No services yet — add one above."}</td></tr>
               )}
-              {servicesDB.map((service) => (
+              {translatedServices.map((service) => (
                 <tr key={service.id} className="hover:bg-zinc-900/30 transition-colors">
                   <td className="px-6 py-4 text-white font-medium">{service.name}</td>
                   <td className="px-6 py-4 text-zinc-400">{service.durationMins} {t.services?.min || "min"}</td>
@@ -599,9 +603,12 @@ function AdminDashboard({ onLogout, onPreviewSite }: { onLogout: () => void; onP
 // 4. MAIN WEBSITE
 // ==========================================
 function MainWebsite({ onEnterAdmin }: { onEnterAdmin: () => void }) {
-  const { currentUser, isAdminAuth, loginEmail, registerEmail, loginOAuth, resetPassword, logout, servicesDB, stylistsDB, generalSettings, t, lang } = useApp();
+  const { currentUser, isAdminAuth, loginEmail, registerEmail, loginOAuth, resetPassword, logout, servicesDB, stylistsDB, generalSettings, t, lang, getTranslatedServices, getTranslatedStylists } = useApp();
   const { resetConsent } = useCookieConsent();
   const [scrolled, setScrolled] = useState(false);
+
+  const translatedServices = getTranslatedServices();
+  const translatedStylists = getTranslatedStylists();
   const [activeSection, setActiveSection] = useState("");
   const [showClientAuth, setShowClientAuth] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
@@ -683,11 +690,11 @@ function MainWebsite({ onEnterAdmin }: { onEnterAdmin: () => void }) {
           scrolled ? "bg-black/80 backdrop-blur-lg border-b border-zinc-800/50 shadow-2xl" : "bg-transparent border-b border-transparent"
         }`}
       >
-        <div className="max-w-7xl mx-auto flex justify-between items-center w-full">
+        <div className="max-w-7xl mx-auto flex items-center justify-between w-full gap-4">
           <div className="flex items-center gap-2 cursor-pointer" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}>
             <span className="text-3xl md:text-4xl font-serif tracking-wide gold-shine-text transition-opacity hover:opacity-80">Dhurdur</span>
           </div>
-          <div className="hidden md:flex gap-8 text-sm font-light items-center">
+          <nav className="hidden md:flex gap-8 text-sm font-light items-center flex-1 justify-center" aria-label="Main navigation">
             {navLinks.map((link) => (
               <a 
                 key={link.name}
@@ -697,6 +704,8 @@ function MainWebsite({ onEnterAdmin }: { onEnterAdmin: () => void }) {
                 {link.name}
               </a>
             ))}
+          </nav>
+          <div className="hidden md:flex items-center gap-4">
             <span className="w-px h-4 bg-zinc-800"></span>
             <LanguageSelector />
 
