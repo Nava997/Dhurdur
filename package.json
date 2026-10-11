@@ -10,11 +10,9 @@
     "test:rules": "firebase emulators:exec --project demo-dhurdur-rules --only firestore,storage \"node --test tests/rules.test.mjs\""
   },
   "dependencies": {
-    "exifr": "^7.1.3",
     "firebase": "^12.17.1",
     "firebase-admin": "^14.2.0",
     "framer-motion": "^13.1.0",
-    "libphonenumber-js": "^1.13.10",
     "next": "16.3.8",
     "nodemailer": "~10.0.9",
     "react": "19.2.8",

@@ -307,11 +307,3 @@ async function logConsentToServer(consent: ConsentState): Promise<void> {
     // Silently fail - consent still stored locally
   }
 }
-
-/**
- * Hook to conditionally load analytics scripts based on consent
- */
-export function useAnalyticsConsent() {
-  const { consent } = useCookieConsent();
-  return consent.analytics === true;
-}

@@ -54,7 +54,7 @@ export function getAdminAuth(): Auth {
 /**
  * Get Firebase Admin Firestore instance
  */
-export function getAdminDb(): Firestore {
+function getAdminDb(): Firestore {
   if (!adminDbInstance) {
     adminDbInstance = getFirestore(getAdminApp());
   }
@@ -93,71 +93,6 @@ export const adminDb: Firestore = new Proxy({} as Firestore, {
  * Custom Claims Management
  * Use custom claims for admin authorization instead of trusting user document's role field
  */
-
-/**
- * Set admin custom claim for a user
- * Call this from a secure admin endpoint or Cloud Function
- */
-export async function setAdminClaim(uid: string, isAdmin: boolean): Promise<void> {
-  const auth = getAdminAuth();
-  await auth.setCustomUserClaims(uid, { admin: isAdmin });
-}
-
-/**
- * Check if a user has admin claim (from decoded ID token)
- * This is the secure way to check admin status
- */
-export function hasAdminClaim(decodedToken: { admin?: boolean } | null | undefined): boolean {
-  return decodedToken?.admin === true;
-}
-
-/**
- * Get user by email (for admin management)
- */
-export async function getUserByEmail(email: string) {
-  const auth = getAdminAuth();
-  return auth.getUserByEmail(email);
-}
-
-/**
- * Delete user (for GDPR Art. 17 compliance)
- */
-export async function deleteUser(uid: string): Promise<void> {
-  const auth = getAdminAuth();
-  await auth.deleteUser(uid);
-}
-
-/**
- * Revoke all refresh tokens for a user (force re-login)
- */
-export async function revokeRefreshTokens(uid: string): Promise<void> {
-  const auth = getAdminAuth();
-  await auth.revokeRefreshTokens(uid);
-}
-
-/**
- * Create custom token for server-side session management
- */
-export async function createCustomToken(uid: string, additionalClaims?: Record<string, unknown>): Promise<string> {
-  const auth = getAdminAuth();
-  return auth.createCustomToken(uid, additionalClaims);
-}
-
-/**
- * Verify ID token and return decoded claims
- */
-export async function verifyIdToken(idToken: string) {
-  const auth = getAdminAuth();
-  return auth.verifyIdToken(idToken);
-}
-
-/**
- * List all users (for admin panel)
- */
-export async function listUsers(maxResults = 1000, pageToken?: string) {
-  const auth = getAdminAuth();
-  return auth.listUsers(maxResults, pageToken);
-}
 
 /**
  * Server-side admin check for API routes. Mirrors isAdmin() in firestore.rules:

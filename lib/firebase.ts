@@ -1,7 +1,6 @@
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getAuth, connectAuthEmulator, GoogleAuthProvider } from 'firebase/auth';
 import { getFirestore, connectFirestoreEmulator } from 'firebase/firestore';
-import { getStorage, connectStorageEmulator } from 'firebase/storage';
 
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
@@ -17,7 +16,6 @@ const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 const auth = getAuth(app);
 auth.languageCode = 'de'; // Password reset / verification emails match the site's primary language
 const db = getFirestore(app);
-const storage = getStorage(app);
 
 // Local testing only: `NEXT_PUBLIC_USE_FIREBASE_EMULATORS=true npm run dev`
 // points the site at the Firebase emulators (see firebase.json) instead of
@@ -27,7 +25,6 @@ if (process.env.NEXT_PUBLIC_USE_FIREBASE_EMULATORS === 'true' && !emulatorFlag._
   emulatorFlag.__dhurdurEmulators = true;
   connectAuthEmulator(auth, 'http://127.0.0.1:9099', { disableWarnings: true });
   connectFirestoreEmulator(db, '127.0.0.1', 8080);
-  connectStorageEmulator(storage, '127.0.0.1', 9199);
 }
 
 export const getGoogleProvider = () => {
@@ -37,4 +34,4 @@ export const getGoogleProvider = () => {
 };
 
 
-export { app, auth, db, storage };
+export { auth, db };

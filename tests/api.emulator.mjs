@@ -5,7 +5,7 @@
 //   2. NEXT_PUBLIC_USE_FIREBASE_EMULATORS=true FIRESTORE_EMULATOR_HOST=127.0.0.1:8080 \
 //      FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:9099 FIREBASE_STORAGE_EMULATOR_HOST=127.0.0.1:9199 \
 //      EMAIL_USER= EMAIL_PASS= DEEPL_API_KEY= \
-//      CRON_SECRET=test-cron-secret-123 INTERNAL_API_SECRET=test-internal-secret npx next dev -p 3100
+//      CRON_SECRET=test-cron-secret-123 npx next dev -p 3100
 //   3. node --test tests/api.emulator.mjs
 import { test, before } from 'node:test';
 import assert from 'node:assert/strict';
@@ -127,10 +127,6 @@ test('email: caller cannot set the sender address (field rejected/ignored)', asy
 });
 
 // ---------------- Translation ----------------
-test('translate (admin tool): rejected without the internal secret', async () => {
-  assert.equal((await api('/api/translate', { method: 'POST', body: { text: 'Hallo', targetLang: 'en' } })).status, 401);
-  assert.equal((await api('/api/translate', { method: 'POST', headers: { 'x-internal-secret': 'wrong' }, body: { text: 'Hallo', targetLang: 'en' } })).status, 401);
-});
 test('translate-ui: injected source text never reaches the shared cache', async () => {
   const r = await api('/api/translate-ui', { method: 'POST', body: { targetLang: 'en', sourceDict: { hero: { sub: 'HACKED SITE' } } } });
   assert.ok([503, 500, 429].includes(r.status) || !JSON.stringify(r.json).includes('HACKED'), `status ${r.status}`);
