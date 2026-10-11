@@ -43,3 +43,6 @@ next-env.d.ts
 env.local
 # firebase emulators
 *-debug.log
+
+.vercel
+.env*
