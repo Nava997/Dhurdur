@@ -117,7 +117,7 @@ function AdminDashboard({ onLogout, onPreviewSite }: { onLogout: () => void; onP
   const [proposing, setProposing] = useState<{ id: string; date: string; time: string } | null>(null);
   const submitProposal = async () => {
     if (!proposing?.date || !proposing.time) return;
-    await updateAppointmentStatus(proposing.id, 'proposed', true, undefined, proposing.date, proposing.time);
+    await updateAppointmentStatus(proposing.id, 'proposed', undefined, proposing.date, proposing.time);
     setProposing(null);
   };
   const submitWalkIn = async () => {
@@ -333,13 +333,13 @@ function AdminDashboard({ onLogout, onPreviewSite }: { onLogout: () => void; onP
                   </td>
                   <td className="px-6 py-4 text-right space-x-3">
                     {row.status !== 'confirmed' && row.status !== 'cancelled' && (
-                      <button onClick={() => updateAppointmentStatus(row.id, 'confirmed', true)} className="text-green-500 hover:text-green-400 transition-colors">{t.admin?.dash?.confirm || "Confirm"}</button>
+                      <button onClick={() => updateAppointmentStatus(row.id, 'confirmed')} className="text-green-500 hover:text-green-400 transition-colors">{t.admin?.dash?.confirm || "Confirm"}</button>
                     )}
                     {(row.status === 'pending' || row.status === 'confirmed') && row.userId !== 'walk-in' && row.userId !== 'block' && (
                       <button onClick={() => setProposing(proposing?.id === row.id ? null : { id: row.id, date: row.date, time: row.time })} className="text-blue-400 hover:text-blue-300 transition-colors">{lang === 'de' ? 'Verschieben' : 'Reschedule'}</button>
                     )}
                     {row.status !== 'cancelled' && (
-                      <button onClick={() => updateAppointmentStatus(row.id, 'cancelled', false)} className="text-red-500 hover:text-red-400 transition-colors">{t.admin?.dash?.cancel || "Cancel"}</button>
+                      <button onClick={() => updateAppointmentStatus(row.id, 'cancelled')} className="text-red-500 hover:text-red-400 transition-colors">{t.admin?.dash?.cancel || "Cancel"}</button>
                     )}
                   </td>
                 </tr>
@@ -794,7 +794,8 @@ function AdminDashboard({ onLogout, onPreviewSite }: { onLogout: () => void; onP
 // 4. MAIN WEBSITE
 // ==========================================
 function MainWebsite({ onEnterAdmin }: { onEnterAdmin: () => void }) {
-  const { currentUser, isAdminAuth, loginEmail, registerEmail, loginOAuth, resetPassword, logout, servicesDB, stylistsDB, productsDB, generalSettings, t, lang, getTranslatedStylists } = useApp();
+  const { currentUser, isAdminAuth, loginEmail, registerEmail, loginOAuth, resetPassword, logout, servicesDB, stylistsDB, productsDB, generalSettings, t, lang, getTranslatedStylists, getTranslatedGeneralSettings } = useApp();
+  const walkinWaitTime = getTranslatedGeneralSettings().walkinWaitTime;
   const [scrolled, setScrolled] = useState(false);
   // Once the salon uploads stylist photos (admin → Team) they replace the sample team.
   const teamWithPhotos = getTranslatedStylists()
@@ -1349,10 +1350,10 @@ function MainWebsite({ onEnterAdmin }: { onEnterAdmin: () => void }) {
         <div className="relative z-10 max-w-4xl mx-auto px-8">
         <h2 className="text-5xl md:text-6xl font-serif mb-2 gold-shine-text inline-block">{t.booking?.title || "Book Your Next Cut"}</h2>
         <p className="text-zinc-400 mb-2 border-b border-zinc-800 pb-8">{t.booking?.subtitle || "Choose a service, pick a time, and we'll confirm."}</p>
-        {generalSettings.walkinWaitTime && (
+        {walkinWaitTime && (
           <p className="text-zinc-500 text-sm mb-8 flex items-center gap-2">
             <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-            {t.booking?.walkinWaitLive || "Walk-in wait right now"}: {generalSettings.walkinWaitTime}
+            {t.booking?.walkinWaitLive || "Walk-in wait right now"}: {walkinWaitTime}
           </p>
         )}
 

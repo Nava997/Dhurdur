@@ -3,10 +3,10 @@
 // unreachable entry makes both pages non-compliant (§ 5 DDG, Art. 13 DSGVO).
 
 /** TODO(owner): legal name of the owner as registered with the Gewerbeamt. */
-export const OWNER_NAME = '[NAME DES INHABERS EINTRAGEN]';
+const OWNER_NAME = '[NAME DES INHABERS EINTRAGEN]';
 
 /** Owner's mailbox (given by the site operator 2026-10-12). */
-export const CONTACT_EMAIL = 'durdurbarbershop@gmail.com';
+const CONTACT_EMAIL = 'durdurbarbershop@gmail.com';
 
 export const LEGAL = {
   businessName: 'Dhurdur',

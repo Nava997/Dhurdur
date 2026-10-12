@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import { useApp } from '@/context/AppContext';
 import { uploadImage, type UploadPurpose } from '@/lib/uploadImage';
 

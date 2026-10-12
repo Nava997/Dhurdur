@@ -1,7 +1,6 @@
 "use client";
-import React, { useState } from 'react';
-import { useApp } from '@/context/AppContext';
-import { fallbackTranslations } from '@/context/AppContext';
+import { useState } from 'react';
+import { useApp, fallbackTranslations } from '@/context/AppContext';
 
 export function NotificationBell() {
   const { alerts, currentUser, markAlertRead, clearAlerts, setPage, t } = useApp();

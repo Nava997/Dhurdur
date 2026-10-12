@@ -39,6 +39,20 @@ service cloud.firestore {
       );
     }
 
+    // Shape of a customer's booking: bounded strings, no unexpected types.
+    function validBooking(d) {
+      return d.name is string && d.name.size() <= 100
+        && d.phone is string && d.phone.size() <= 40
+        && d.services is list && d.services.size() > 0 && d.services.size() <= 20
+        && d.totalDurationMins is number && d.totalDurationMins > 0 && d.totalDurationMins <= 600
+        && d.stylist is string && d.stylist.size() <= 100
+        && d.date is string && d.date.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
+        && d.time is string && d.time.matches('^[0-9]{2}:[0-9]{2}$')
+        && d.sendsms is bool
+        && (!('specialRequests' in d) || (d.specialRequests is string && d.specialRequests.size() <= 1000))
+        && (!('isEmergency' in d) || d.isEmergency is bool);
+    }
+
     match /users/{userId} {
       allow read: if isOwnerOrAdmin(userId);
       allow delete: if isAdmin();
@@ -46,19 +60,15 @@ service cloud.firestore {
 
       // Customers create their own profile as a plain user with 0 loyalty points.
       allow create: if isOwner(userId)
+        && request.resource.data.keys().hasOnly(['id', 'name', 'email', 'phone', 'haircutCount', 'role', 'photoURL', 'hasUpdatedPassword'])
         && request.resource.data.id == userId
         && request.resource.data.role == 'user'
         && request.resource.data.haircutCount == 0;
 
-      // Customers may edit their own contact details, but never their role/id,
-      // and loyalty points may only go up by one (a booking) or down.
+      // Customers may edit their own contact details only. Loyalty points are
+      // awarded server-side (/api/appointments/notify), never by the browser.
       allow update: if isOwner(userId)
-        && !changed().hasAny(['role', 'id'])
-        && changed().hasOnly(['name', 'email', 'phone', 'photoURL', 'hasUpdatedPassword', 'haircutCount'])
-        && (!changed().hasAny(['haircutCount']) ||
-            (request.resource.data.haircutCount is int &&
-             request.resource.data.haircutCount >= 0 &&
-             request.resource.data.haircutCount <= resource.data.haircutCount + 1));
+        && changed().hasOnly(['name', 'email', 'phone', 'photoURL', 'hasUpdatedPassword']);
     }
 
     match /clientNotes/{userId} {
@@ -78,6 +88,7 @@ service cloud.firestore {
              'userId', 'name', 'phone', 'services', 'totalDurationMins', 'stylist',
              'date', 'time', 'status', 'sendsms', 'usedReward', 'specialRequests',
              'referenceImage', 'isEmergency'])
+        && validBooking(request.resource.data)
         && validReferenceImage(request.resource.data)
       );
 
@@ -91,8 +102,13 @@ service cloud.firestore {
           (
             resource.data.status == 'proposed' &&
             (
+              // Accepting moves the booking to exactly the proposed slot.
               (request.resource.data.status == 'confirmed' &&
-                changed().hasOnly(['status', 'date', 'time', 'proposedDate', 'proposedTime'])) ||
+                changed().hasOnly(['status', 'date', 'time', 'proposedDate', 'proposedTime']) &&
+                request.resource.data.date == resource.data.proposedDate &&
+                request.resource.data.time == resource.data.proposedTime &&
+                request.resource.data.proposedDate == null &&
+                request.resource.data.proposedTime == null) ||
               (request.resource.data.status == 'cancelled' &&
                 changed().hasOnly(['status']))
             )
@@ -121,21 +137,20 @@ service cloud.firestore {
 
     match /alerts/{alertId} {
       allow read: if isAdmin() || (request.auth != null && resource.data.userId == request.auth.uid);
-      // Customers create an alert for themselves when accepting/declining a proposal.
-      allow create: if isAdmin() || isOwner(request.resource.data.userId);
+      // Customers create an alert for themselves when accepting a proposal.
+      allow create: if isAdmin() || (
+        isOwner(request.resource.data.userId)
+        && request.resource.data.keys().hasOnly(['userId', 'message', 'isRead', 'link', 'createdAt'])
+        && request.resource.data.message is string && request.resource.data.message.size() <= 500
+      );
       allow update: if isAdmin() || (isOwner(resource.data.userId) && changed().hasOnly(['isRead']));
       allow delete: if isAdmin() || isOwner(resource.data.userId);
     }
 
     match /waitlist/{waitlistId} {
       allow read: if isAdmin() || (request.auth != null && resource.data.userId == request.auth.uid);
-      allow create: if isAdmin() || isOwner(request.resource.data.userId);
-      allow update, delete: if isAdmin();
-    }
-
-    match /translations/{document=**} {
-      allow read: if true;
-      allow write: if isAdmin();
+      // Entries are added by the salon; there is no customer sign-up flow.
+      allow create, update, delete: if isAdmin();
     }
 
     // consentLogs and anything else: server (Admin SDK) only.

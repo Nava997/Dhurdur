@@ -74,8 +74,9 @@ export function createAuditLog(
     resourceType,
     success,
     error,
-    ip: request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
-        request.headers.get('x-real-ip') ||
+    // x-real-ip first (set by Vercel); x-forwarded-for can be prefixed by the client.
+    ip: request.headers.get('x-real-ip') ||
+        request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
         'unknown',
     userAgent: request.headers.get('user-agent') || 'unknown',
     metadata,

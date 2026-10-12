@@ -21,6 +21,8 @@ export type Appointment = {
   sendsms: boolean; usedReward: boolean; notes?: string; isEmergency?: boolean;
   referenceImage?: string;
   specialRequests?: string;
+  // Server-managed (see /api/appointments/notify).
+  loyaltyCounted?: boolean;
 };
 
 export type WaitlistItem = { id: string; userId: string; name: string; phone: string; date: string; stylist: string; createdAt: number; };
@@ -43,11 +45,11 @@ const initialSlots: TimeSlot[] = [
 ];
 
 export interface AppContextType {
-  lang: Language; setLang: (lang: Language) => void;
+  lang: Language;
   changeLanguage: (newLang: string) => Promise<void>;
   isTranslatingUI: boolean;
   page: Page; setPage: (page: Page) => void;
-  t: TranslationData[string]; updateTranslation: (lang: Language, section: string, key: string, val: string) => Promise<void>;
+  t: TranslationData[string];
   isAdminAuth: boolean;
   currentUser: UserProfile | null;
   usersDB: UserProfile[]; clientNotesDB: Record<string, string>; updateUserNotes: (id: string, notes: string) => Promise<void>;
@@ -61,16 +63,16 @@ export interface AppContextType {
   appointments: Appointment[];
   addAppointment: (appt: Omit<Appointment, 'id'>) => Promise<DocumentReference | undefined>;
   addAdminAppointment: (appt: Omit<Appointment, 'id'>) => Promise<void>;
-  updateAppointmentStatus: (id: string, status: Appointment['status'], sendsms: boolean, notes?: string, proposedDate?: string, proposedTime?: string) => Promise<void>;
+  updateAppointmentStatus: (id: string, status: Appointment['status'], notes?: string, proposedDate?: string, proposedTime?: string) => Promise<void>;
   cancelOwnAppointment: (id: string) => Promise<void>;
+  acceptProposal: (id: string) => Promise<void>;
   servicesDB: ServiceItem[]; addService: (s: Omit<ServiceItem, 'id'>) => Promise<void>; deleteService: (id: string) => Promise<void>;
   productsDB: ProductItem[]; addProduct: (p: Omit<ProductItem, 'id'>) => Promise<void>; deleteProduct: (id: string) => Promise<void>;
-  updateProductStock: (id: string, newStock: number) => Promise<void>;
   // Phase 4 Dynamic Actions
   stylistsDB: StylistItem[]; addStylist: (s: Omit<StylistItem, 'id'>) => Promise<void>; deleteStylist: (id: string) => Promise<void>;
   updateStylist: (id: string, changes: Partial<Omit<StylistItem, 'id'>>) => Promise<void>;
   generalSettings: GeneralSettings; updateGeneralSettings: (settings: Partial<GeneralSettings>) => Promise<void>;
-  waitlist: WaitlistItem[]; addToWaitlist: (item: Omit<WaitlistItem, 'id' | 'createdAt'>) => Promise<void>; removeFromWaitlist: (id: string) => Promise<void>; notifyWaitlist: (item: WaitlistItem) => Promise<void>; resendConfirmation: (id: string) => Promise<void>;
+  waitlist: WaitlistItem[]; removeFromWaitlist: (id: string) => Promise<void>; notifyWaitlist: (item: WaitlistItem) => Promise<void>;
   notifications: Notification[]; addNotification: (msg: string, type?: 'success' | 'info' | 'error') => void;
   alerts: Alert[]; markAlertRead: (id: string) => Promise<void>; clearAlerts: () => Promise<void>;
   getAvailableSlots: (date: string, stylist: string, requiredDuration?: number) => TimeSlot[];
@@ -507,12 +509,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     addNotification("Stylisten-Notizen gespeichert!", "success");
   };
 
-  const updateTranslation = async (l: Language, section: string, key: string, val: string) => {
-    if (!isAdminAuth) return;
-    await updateDoc(doc(db, 'settings', 'translations'), { [`${l}.${section}.${key}`]: val });
-    addNotification("Translation saved via Cloud!", 'success');
+  // E-mails and loyalty points for a customer's own booking actions are
+  // handled server-side, so they can't be forged from the browser.
+  const notifyAppointment = async (appointmentId: string, event: 'booked' | 'cancelled' | 'accepted') => {
+    await fetch('/api/appointments/notify', {
+      method: 'POST', headers: await getAuthHeaders(), body: JSON.stringify({ appointmentId, event }),
+    }).catch(() => {});
   };
 
+  // Admin only: /api/email rejects everyone else.
   const sendDualEmail = async (uEmail: string | null, uSubj: string, uMsg: string, aSubj: string, aMsg: string) => {
     try {
       const headers = await getAuthHeaders();
@@ -525,11 +530,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     } catch (e) {
       console.error("Dual Email Execution Failed", e);
     }
-  };
-
-  const addToWaitlist = async (item: Omit<WaitlistItem, 'id' | 'createdAt'>) => {
-    await addDoc(collection(db, 'waitlist'), { ...item, createdAt: Date.now() });
-    addNotification("Auf die Warteliste gesetzt!", 'success');
   };
 
   const removeFromWaitlist = async (id: string) => {
@@ -551,25 +551,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     addNotification("Kunde benachrichtigt!", 'success');
   };
 
-  const resendConfirmation = async (id: string) => {
-    const appt = appointments.find(a => a.id === id);
-    if (!appt || appt.status !== 'confirmed') return;
-    const userDoc = await getDoc(doc(db, 'users', appt.userId));
-    const userEmail = userDoc.exists() ? userDoc.data().email : null;
-
-    await sendDualEmail(
-      userEmail,
-      "Dhurdur: Terminbestätigung (Erneut gesendet)",
-      `Hallo ${appt.name},\n\nDies ist eine Erinnerung an deinen bestätigten Termin am ${appt.date} um ${appt.time} Uhr bei ${appt.stylist}.\n\nWir freuen uns auf dich.\nDhurdur`,
-      "", ""
-    );
-    addNotification("Bestätigung erfolgreich erneut gesendet!", 'success');
-  };
-
   const addAdminAppointment = async (appt: Omit<Appointment, 'id'>) => {
     if (!isAdminAuth) return;
     const cleanAppt = Object.fromEntries(Object.entries(appt).filter(([, v]) => v !== undefined));
-    await addDoc(collection(db, 'appointments'), cleanAppt);
+    await addDoc(collection(db, 'appointments'), { ...cleanAppt, loyaltyCounted: false });
     addNotification("Gespeichert!", 'success');
   };
 
@@ -580,18 +565,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     // which made every booking without notes fail — drop them before writing.
     const cleanAppt = Object.fromEntries(Object.entries(appt).filter(([, v]) => v !== undefined));
     const docRef = await addDoc(collection(db, 'appointments'), cleanAppt);
-    const userRef = doc(db, 'users', currentUser.id);
-
-    if (appt.usedReward) await updateDoc(userRef, { haircutCount: Math.max(0, currentUser.haircutCount - 10) });
-    else await updateDoc(userRef, { haircutCount: currentUser.haircutCount + 1 });
-
-    await sendDualEmail(
-      currentUser.email,
-      "Dhurdur: Buchungsanfrage erhalten",
-      `Hallo ${appt.name},\n\nDeine Anfrage für ${appt.services.join(', ')} am ${appt.date} um ${appt.time} Uhr wurde an den Salon übermittelt.\n\nWir prüfen derzeit die Verfügbarkeit und werden deinen Termin in Kürze bestätigen.\n\nDein Dhurdur Team`,
-      "🚨 Neuer Termin eingegangen!",
-      `Hallo Admin,\n\nEs gibt eine neue Buchung:\nKunde: ${appt.name} (${appt.phone})\nLeistungen: ${appt.services.join(', ')} (${appt.totalDurationMins} Min)\nDatum: ${appt.date} um ${appt.time} Uhr\nStylist: ${appt.stylist}\nWünsche: ${appt.specialRequests || '-'}\n\nBitte logge dich im Admin-Panel ein, um den Termin zu bestätigen, abzulehnen oder zu verschieben.`
-    );
+    await notifyAppointment(docRef.id, 'booked');
 
     addNotification("Appointment request sent!", 'success');
     return docRef;
@@ -605,35 +579,37 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     if (!['pending', 'confirmed', 'proposed'].includes(appt.status)) return;
 
     await updateDoc(doc(db, 'appointments', id), { status: 'cancelled' });
-    if (!appt.usedReward) {
-      await updateDoc(doc(db, 'users', currentUser.id), { haircutCount: Math.max(0, currentUser.haircutCount - 1) });
-    }
-
-    await sendDualEmail(
-      currentUser.email,
-      "Dhurdur: Termin storniert",
-      `Hallo ${appt.name},
-
-dein Termin am ${appt.date} um ${appt.time} Uhr bei ${appt.stylist} wurde wie gewünscht storniert.
-
-Du kannst jederzeit einen neuen Termin auf unserer Webseite buchen.
-
-Dein Dhurdur Team`,
-      "Kunde hat Termin storniert",
-      `${appt.name} (${appt.phone}) hat den Termin am ${appt.date} um ${appt.time} Uhr bei ${appt.stylist} storniert.
-Leistungen: ${appt.services.join(', ')}
-
-Der Zeitraum ist wieder frei.`
-    );
+    await notifyAppointment(id, 'cancelled');
     addNotification(lang === 'de' ? "Termin storniert." : "Appointment cancelled.", 'info');
   };
 
-  const updateAppointmentStatus = async (id: string, status: Appointment['status'], sendsms: boolean, notes?: string, proposedDate?: string, proposedTime?: string) => {
+  // Customer accepts the salon's proposed new time.
+  const acceptProposal = async (id: string) => {
     const appt = appointments.find(a => a.id === id);
-    if (!appt) return;
+    if (!currentUser || !appt || appt.userId !== currentUser.id || appt.status !== 'proposed') return;
+    if (!appt.proposedDate || !appt.proposedTime) return;
+
+    await updateDoc(doc(db, 'appointments', id), {
+      status: 'confirmed', date: appt.proposedDate, time: appt.proposedTime, proposedDate: null, proposedTime: null,
+    });
+    const tAlert = translations[lang]?.alertsMsg || fallbackTranslations[lang]?.alertsMsg || fallbackTranslations.de.alertsMsg;
+    const tCommon = translations[lang]?.common || fallbackTranslations[lang]?.common || fallbackTranslations.de.common;
+    await addDoc(collection(db, 'alerts'), { userId: appt.userId, message: `${tAlert.confirmed1} ${appt.proposedDate} ${tCommon.at} ${appt.proposedTime} ${tAlert.confirmed2}`, isRead: false, link: 'profile', createdAt: Date.now() });
+    await notifyAppointment(id, 'accepted');
+    addNotification("Termin bestätigt!", 'success');
+  };
+
+  // Admin only.
+  const updateAppointmentStatus = async (id: string, status: Appointment['status'], notes?: string, proposedDate?: string, proposedTime?: string) => {
+    const appt = appointments.find(a => a.id === id);
+    if (!isAdminAuth || !appt) return;
 
     const updates: Record<string, unknown> = { status };
     if (notes !== undefined) updates.notes = notes;
+    // Bookings made before loyaltyCounted existed were counted when booked.
+    const loyaltyCounted = appt.loyaltyCounted ?? !appt.usedReward;
+    const cancelling = status === 'cancelled' && appt.status !== 'cancelled';
+    if (cancelling) updates.loyaltyCounted = false;
 
     if (status === 'confirmed' && proposedDate && proposedTime) {
       updates.date = proposedDate;
@@ -652,13 +628,13 @@ Der Zeitraum ist wieder frei.`
       return;
     }
 
-    if (status === 'cancelled' && appt.status !== 'cancelled') {
+    if (cancelling) {
       const userRef = doc(db, 'users', appt.userId);
       const userDoc = await getDoc(userRef);
       if (userDoc.exists()) {
         const uData = userDoc.data();
         if (appt.usedReward) await updateDoc(userRef, { haircutCount: uData.haircutCount + 10 });
-        else await updateDoc(userRef, { haircutCount: Math.max(0, uData.haircutCount - 1) });
+        else if (loyaltyCounted) await updateDoc(userRef, { haircutCount: Math.max(0, uData.haircutCount - 1) });
       }
     }
 
@@ -720,11 +696,6 @@ Der Zeitraum ist wieder frei.`
     addNotification("Deleted.", 'info');
   };
 
-  const updateProductStock = async (id: string, newStock: number) => {
-    if (!isAdminAuth) return;
-    await updateDoc(doc(db, 'products', id), { stockCount: newStock });
-  };
-
   // Phase 4 Stylist & Settings Updates
   const addStylist = async (s: Omit<StylistItem, 'id'>) => { await addDoc(collection(db, 'stylists'), s); addNotification("Stylist gespeichert!", 'success'); };
   const deleteStylist = async (id: string) => {
@@ -781,11 +752,11 @@ Der Zeitraum ist wieder frei.`
 
   return (
     <AppContext.Provider value={{
-      lang, setLang, changeLanguage, isTranslatingUI, page, setPage: setPageRouter, t, updateTranslation,
+      lang, changeLanguage, isTranslatingUI, page, setPage: setPageRouter, t,
       isAdminAuth, currentUser, usersDB, clientNotesDB, updateUserNotes, loginOAuth, loginEmail, registerEmail, resetPassword, requestPasswordOtp, updateUserPassword, logout,
-      servicesDB, addService, deleteService, productsDB, addProduct, deleteProduct, updateProductStock,
-      appointments, addAppointment, addAdminAppointment, updateAppointmentStatus, cancelOwnAppointment, notifications, addNotification, getAvailableSlots,
-      waitlist, addToWaitlist, removeFromWaitlist, notifyWaitlist, resendConfirmation,
+      servicesDB, addService, deleteService, productsDB, addProduct, deleteProduct,
+      appointments, addAppointment, addAdminAppointment, updateAppointmentStatus, cancelOwnAppointment, acceptProposal, notifications, addNotification, getAvailableSlots,
+      waitlist, removeFromWaitlist, notifyWaitlist,
       stylistsDB, addStylist, deleteStylist, updateStylist, generalSettings, updateGeneralSettings,
       alerts, markAlertRead, clearAlerts,
       getTranslatedServices, getTranslatedStylists, getTranslatedGeneralSettings

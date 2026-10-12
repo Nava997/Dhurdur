@@ -77,12 +77,16 @@ test('customer cannot start with loyalty points', async () => {
   const db = env.authenticatedContext('newbie', { email: 'n@example.com' }).firestore();
   await assertFails(setDoc(doc(db, 'users/newbie'), { id: 'newbie', name: 'N', email: 'n@example.com', phone: '', haircutCount: 10, role: 'user' }));
 });
-test('customer cannot jump loyalty points', async () => {
+test('customer cannot change their own loyalty points at all', async () => {
   await assertFails(updateDoc(doc(alice(), 'users/alice'), { haircutCount: 10 }));
+  await assertFails(updateDoc(doc(alice(), 'users/alice'), { haircutCount: 4 }));
 });
-test('customer can add one loyalty point (booking) and edit name/phone', async () => {
-  await assertSucceeds(updateDoc(doc(alice(), 'users/alice'), { haircutCount: 4 }));
+test('customer can edit name/phone', async () => {
   await assertSucceeds(updateDoc(doc(alice(), 'users/alice'), { name: 'Alice B', phone: '+491709999999' }));
+});
+test('customer cannot add extra fields to their profile', async () => {
+  const db = env.authenticatedContext('newbie', { email: 'n@example.com' }).firestore();
+  await assertFails(setDoc(doc(db, 'users/newbie'), { id: 'newbie', name: 'N', email: 'n@example.com', phone: '', haircutCount: 0, role: 'user', vip: true }));
 });
 test('unverified email on the admin list is NOT admin', async () => {
   await assertFails(getDocs(collection(fakeAdmin(), 'users')));
@@ -141,6 +145,13 @@ test('customer cannot claim a reward or inject admin fields', async () => {
   await assertFails(addDoc(collection(alice(), 'appointments'), validBooking('alice', { usedReward: true })));
   await assertFails(addDoc(collection(alice(), 'appointments'), validBooking('alice', { notes: 'VIP, free' })));
 });
+test('booking fields must be well-formed', async () => {
+  await assertFails(addDoc(collection(alice(), 'appointments'), validBooking('alice', { date: 'tomorrow' })));
+  await assertFails(addDoc(collection(alice(), 'appointments'), validBooking('alice', { name: 'x'.repeat(101) })));
+  await assertFails(addDoc(collection(alice(), 'appointments'), validBooking('alice', { specialRequests: 'x'.repeat(1001) })));
+  await assertFails(addDoc(collection(alice(), 'appointments'), validBooking('alice', { totalDurationMins: 100000 })));
+  await assertFails(addDoc(collection(alice(), 'appointments'), validBooking('alice', { loyaltyCounted: true })));
+});
 test('guest cannot create bookings', async () => {
   await assertFails(addDoc(collection(guest(), 'appointments'), validBooking('alice')));
 });
@@ -152,6 +163,12 @@ test('customer can accept or decline a salon proposal', async () => {
   await assertSucceeds(updateDoc(doc(alice(), 'appointments/p1'), {
     status: 'confirmed', date: '2030-01-11', time: '11:00', proposedDate: null, proposedTime: null,
   }));
+});
+test('accepting a proposal cannot move the booking to another slot', async () => {
+  await assertFails(updateDoc(doc(alice(), 'appointments/p1'), {
+    status: 'confirmed', date: '2030-06-01', time: '09:00', proposedDate: null, proposedTime: null,
+  }));
+  await assertFails(updateDoc(doc(alice(), 'appointments/p1'), { status: 'confirmed', date: '2030-01-11', time: '11:00' }));
 });
 test('customer can decline a salon proposal', async () => {
   await assertSucceeds(updateDoc(doc(alice(), 'appointments/p1'), { status: 'cancelled' }));
@@ -198,10 +215,15 @@ test("customer cannot hijack or delete someone else's alert", async () => {
 test('customer cannot create alerts for other people', async () => {
   await assertFails(addDoc(collection(bob(), 'alerts'), { userId: 'alice', message: 'phish', isRead: false, link: 'profile', createdAt: 2 }));
 });
-test('waitlist: own entry only, no edits', async () => {
-  await assertSucceeds(addDoc(collection(bob(), 'waitlist'), { userId: 'bob', name: 'Bob', phone: '', date: '2030-01-10', stylist: 'Any', createdAt: 2 }));
-  await assertFails(addDoc(collection(bob(), 'waitlist'), { userId: 'alice', name: 'x', phone: '', date: '2030-01-10', stylist: 'Any', createdAt: 2 }));
+test('customer alerts: only the expected fields', async () => {
+  await assertSucceeds(addDoc(collection(alice(), 'alerts'), { userId: 'alice', message: 'ok', isRead: false, link: 'profile', createdAt: 2 }));
+  await assertFails(addDoc(collection(alice(), 'alerts'), { userId: 'alice', message: 'x'.repeat(501), isRead: false, link: 'profile', createdAt: 2 }));
+  await assertFails(addDoc(collection(alice(), 'alerts'), { userId: 'alice', message: 'ok', isRead: false, link: 'profile', createdAt: 2, extra: 1 }));
+});
+test('waitlist: salon-managed, customers cannot add or edit entries', async () => {
+  await assertFails(addDoc(collection(bob(), 'waitlist'), { userId: 'bob', name: 'Bob', phone: '', date: '2030-01-10', stylist: 'Any', createdAt: 2 }));
   await assertFails(updateDoc(doc(alice(), 'waitlist/w1'), { date: '2030-03-01' }));
+  await assertSucceeds(addDoc(collection(roleAdmin(), 'waitlist'), { userId: 'bob', name: 'Bob', phone: '', date: '2030-01-10', stylist: 'Any', createdAt: 2 }));
 });
 
 // ---------- Public content ----------
@@ -215,23 +237,16 @@ test('anyone can read services/settings, only admins can change them', async () 
 });
 
 // ---------- Storage ----------
-const img = new Uint8Array([0xff, 0xd8, 0xff, 0xe0]);
-test('storage: owner can upload a small image to their own folder', async () => {
-  const s = env.authenticatedContext('alice', { email: 'alice@example.com', email_verified: true }).storage();
-  await assertSucceeds(uploadBytes(ref(s, 'reference-images/alice/a1/x.jpg'), img, { contentType: 'image/jpeg' }));
-});
-test('storage: no uploads into someone else\'s folder, no non-images', async () => {
-  const s = env.authenticatedContext('bob', { email: 'bob@example.com', email_verified: true }).storage();
-  await assertFails(uploadBytes(ref(s, 'reference-images/alice/a1/evil.jpg'), img, { contentType: 'image/jpeg' }));
-  await assertFails(uploadBytes(ref(s, 'reference-images/bob/b1/evil.html'), img, { contentType: 'text/html' }));
-  await assertFails(uploadBytes(ref(s, 'anything/else.jpg'), img, { contentType: 'image/jpeg' }));
-});
-test('storage: others cannot read a customer\'s reference image', async () => {
+// Images live in Cloudinary; the Firebase Storage bucket is closed.
+test('storage: closed to everyone', async () => {
+  const img = new Uint8Array([0xff, 0xd8, 0xff, 0xe0]);
+  const aliceS = env.authenticatedContext('alice', { email: 'alice@example.com', email_verified: true }).storage();
+  const adminS = env.authenticatedContext('admin1', { email: ADMIN_EMAIL, email_verified: true }).storage();
+  await assertFails(uploadBytes(ref(aliceS, 'reference-images/alice/a1/x.jpg'), img, { contentType: 'image/jpeg' }));
+  await assertFails(uploadBytes(ref(adminS, 'anything/x.jpg'), img, { contentType: 'image/jpeg' }));
   await env.withSecurityRulesDisabled(async (ctx) => {
     await uploadBytes(ref(ctx.storage(), 'reference-images/alice/a1/x.jpg'), img, { contentType: 'image/jpeg' });
   });
-  const bobS = env.authenticatedContext('bob', { email: 'bob@example.com', email_verified: true }).storage();
-  const guestS = env.unauthenticatedContext().storage();
-  await assertFails(getBytes(ref(bobS, 'reference-images/alice/a1/x.jpg')));
-  await assertFails(getBytes(ref(guestS, 'reference-images/alice/a1/x.jpg')));
+  await assertFails(getBytes(ref(aliceS, 'reference-images/alice/a1/x.jpg')));
+  await assertFails(getBytes(ref(env.unauthenticatedContext().storage(), 'reference-images/alice/a1/x.jpg')));
 });

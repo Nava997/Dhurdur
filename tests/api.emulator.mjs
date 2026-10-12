@@ -112,21 +112,38 @@ test('email: no token / garbage token rejected', async () => {
   assert.equal((await api('/api/email', { method: 'POST', body: { email: 'x@example.com', subject: 's', message: 'm' } })).status, 401);
   assert.equal((await api('/api/email', { method: 'POST', token: 'not-a-token', body: { email: 'x@example.com', subject: 's', message: 'm' } })).status, 401);
 });
-test('email: customer cannot email a third party', async () => {
-  const r = await api('/api/email', { method: 'POST', token: T.alice, body: { email: 'victim@example.com', subject: 'Phish', message: 'click' } });
-  assert.equal(r.status, 403);
+test('email: customers cannot send free text at all (not even to themselves or the admin)', async () => {
+  for (const email of ['victim@example.com', 'alice@example.com', 'durdurbarbershop@gmail.com']) {
+    const r = await api('/api/email', { method: 'POST', token: T.alice, body: { email, subject: 'Phish', message: 'click' } });
+    assert.equal(r.status, 403);
+  }
 });
 test('email: unverified address on the admin list is not admin', async () => {
   const r = await api('/api/email', { method: 'POST', token: T.mallory, body: { email: 'victim@example.com', subject: 'Phish', message: 'click' } });
   assert.equal(r.status, 403);
 });
-test('email: customer to self and admin to customer pass auth (mail disabled in test => 503)', async () => {
-  assert.equal((await api('/api/email', { method: 'POST', token: T.alice, body: { email: 'alice@example.com', subject: 's', message: 'm' } })).status, 503);
+test('email: admin passes auth (mail disabled in test => 503)', async () => {
   assert.equal((await api('/api/email', { method: 'POST', token: T.staff, body: { email: 'alice@example.com', subject: 's', message: 'm' } })).status, 503);
 });
-test('email: caller cannot set the sender address (field rejected/ignored)', async () => {
-  const r = await api('/api/email', { method: 'POST', token: T.alice, body: { email: 'alice@example.com', subject: 's', message: 'm', fromEmail: 'ceo@bank.com', fromName: 'Bank' } });
-  assert.notEqual(r.status, 200);
+
+// ---------------- Booking notifications / loyalty ----------------
+test('notify: login required, own bookings only', async () => {
+  assert.equal((await api('/api/appointments/notify', { method: 'POST', body: { appointmentId: 'a-alice', event: 'booked' } })).status, 401);
+  assert.equal((await api('/api/appointments/notify', { method: 'POST', token: T.bob, body: { appointmentId: 'a-alice', event: 'booked' } })).status, 404);
+  assert.equal((await api('/api/appointments/notify', { method: 'POST', token: T.alice, body: { appointmentId: 'a-alice', event: 'nope' } })).status, 400);
+});
+test('notify: a booking earns exactly one loyalty point, once', async () => {
+  const before = (await db.doc('users/alice').get()).data().haircutCount;
+  const first = await api('/api/appointments/notify', { method: 'POST', token: T.alice, body: { appointmentId: 'a-alice', event: 'booked' } });
+  assert.equal(first.status, 200);
+  const again = await api('/api/appointments/notify', { method: 'POST', token: T.alice, body: { appointmentId: 'a-alice', event: 'booked' } });
+  assert.equal(again.status, 409);
+  assert.equal((await db.doc('users/alice').get()).data().haircutCount, before + 1);
+});
+test('notify: event must match the booking status', async () => {
+  // a-alice is pending, not cancelled or confirmed.
+  assert.equal((await api('/api/appointments/notify', { method: 'POST', token: T.alice, body: { appointmentId: 'a-alice', event: 'cancelled' } })).status, 409);
+  assert.equal((await api('/api/appointments/notify', { method: 'POST', token: T.alice, body: { appointmentId: 'a-alice', event: 'accepted' } })).status, 409);
 });
 
 // ---------------- Translation ----------------

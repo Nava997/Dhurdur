@@ -35,6 +35,9 @@
   "overrides": {
     "jwks-rsa": {
       "jose": "^5.10.0"
+    },
+    "@firebase/firestore": {
+      "@grpc/grpc-js": "^1.14.6"
     }
   }
 }

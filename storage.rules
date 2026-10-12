@@ -1,36 +1,8 @@
 rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
-
-    function isAdmin() {
-      // Keep in sync with isAdmin() in firestore.rules.
-      return request.auth != null && (
-        (request.auth.token.email_verified == true &&
-          request.auth.token.email in ['durdurbarbershop@gmail.com']) ||
-        (firestore.exists(/databases/(default)/documents/users/$(request.auth.uid)) &&
-         firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.role == 'admin')
-      );
-    }
-
-    function isOwner(userId) {
-      return request.auth != null && request.auth.uid == userId;
-    }
-
-    // Reference images clients attach to a booking, stored at
-    // reference-images/{userId}/{appointmentId}/{fileName}
-    // Defense in depth alongside the client-side checks in lib/storage.ts:
-    // re-enforces the 5MB cap and image-only content type at the rules level,
-    // since client-side validation alone can be bypassed by anyone calling
-    // the Storage SDK directly.
-    match /reference-images/{userId}/{appointmentId}/{fileName} {
-      allow read: if isOwner(userId) || isAdmin();
-      allow write: if (isOwner(userId) || isAdmin())
-        && request.resource.size < 5 * 1024 * 1024
-        && request.resource.contentType.matches('image/.*');
-      allow delete: if isOwner(userId) || isAdmin();
-    }
-
-    // Deny everything else by default.
+    // All images live in Cloudinary (see lib/cloudinary.ts); the Firebase
+    // Storage bucket is unused and stays closed to every client.
     match /{allPaths=**} {
       allow read, write: if false;
     }

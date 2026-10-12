@@ -16,6 +16,7 @@ const RATE_LIMIT_CONFIG: Record<string, { windowMs: number; maxRequests: number 
   '/api/account/export': { windowMs: 60 * 1000, maxRequests: 5 },
   '/api/cloudinary/sign': { windowMs: 60 * 1000, maxRequests: 20 },
   '/api/cloudinary/delete': { windowMs: 60 * 1000, maxRequests: 30 },
+  '/api/appointments/notify': { windowMs: 60 * 1000, maxRequests: 10 },
   // Default for other API routes
   'default': { windowMs: 60 * 1000, maxRequests: 60 },        // 60 requests per minute
 };
@@ -67,11 +68,6 @@ export function proxy(request: NextRequest) {
 
   // Only apply rate limiting to API routes
   if (!path.startsWith('/api/')) {
-    return NextResponse.next();
-  }
-
-  // Skip rate limiting for internal health checks
-  if (path === '/api/health' || path === '/api/ready') {
     return NextResponse.next();
   }
 

@@ -7,7 +7,7 @@ import { createHash } from 'crypto';
 
 export type UploadPurpose = 'gallery' | 'stylist' | 'product' | 'reference';
 export const ADMIN_PURPOSES: UploadPurpose[] = ['gallery', 'stylist', 'product'];
-export const ALLOWED_FORMATS = 'jpg,jpeg,png,webp';
+const ALLOWED_FORMATS = 'jpg,jpeg,png,webp';
 const ROOT = 'dhurdur';
 
 function config() {
@@ -79,7 +79,7 @@ export async function deleteUserImages(uid: string): Promise<void> {
 export type StoredImage = { publicId: string; url: string; createdAt: string; bytes: number };
 
 /** Lists every image under a folder prefix (follows Admin API pagination). */
-export async function listImages(prefix: string): Promise<StoredImage[]> {
+async function listImages(prefix: string): Promise<StoredImage[]> {
   const c = config();
   if (!c) return [];
   const out: StoredImage[] = [];

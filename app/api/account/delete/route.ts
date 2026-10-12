@@ -1,6 +1,6 @@
 import 'server-only';
 import { NextRequest, NextResponse } from 'next/server';
-import { adminAuth, adminDb, getAdminAuth, isAdminToken } from '@/lib/firebaseAdmin';
+import { adminAuth, adminDb, getAdminAuth, isAdminToken, isAdminUid } from '@/lib/firebaseAdmin';
 import { createAuditLog, logAudit } from '@/lib/validation';
 import { rateLimit } from '@/lib/rateLimit';
 import { deleteUserImages } from '@/lib/cloudinary';
@@ -53,8 +53,7 @@ export async function POST(req: NextRequest) {
     if (!(await isAdminToken(decoded))) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
-    const target = await adminDb.collection('users').doc(uid).get();
-    if (target.data()?.role === 'admin') {
+    if (await isAdminUid(uid)) {
       return NextResponse.json({ error: 'Cannot delete an admin account' }, { status: 400 });
     }
   }

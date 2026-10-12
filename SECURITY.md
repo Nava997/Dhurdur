@@ -16,40 +16,48 @@ firebase deploy --only firestore:rules,storage:rules
 
 ## What the rules actually protect
 
-- `users/{userId}` — a client can only read/write their own profile; admins
-  can read/write any.
+- `users/{userId}` — a client can only read their own profile and edit their
+  contact details; loyalty points (`haircutCount`) and `role` are never
+  client-writable. Admins can read/write any profile.
 - `clientNotes/{userId}` — private staff notes about a client. **Admin
   only**, on both read and write. This is intentionally a separate
   collection from `users/{userId}` rather than a field on it, specifically
   so a client can never pull their own profile and see notes staff wrote
   about them.
-- `appointments/{apptId}` — clients can create their own bookings and
-  respond to a proposed reschedule; only admins can confirm/edit/delete
-  freely, or create a booking on someone else's behalf (walk-ins).
-- `stylists`, `services`, `settings`, `translations` — public read, admin
-  write.
-- `waitlist` — admin read/manage; a client can only add themselves.
-- Firebase Storage `reference-images/{userId}/{appointmentId}/...` — only
-  the owning client or an admin can read/write, capped at 5MB, images only.
+- `appointments/{apptId}` — clients can create their own well-formed pending
+  bookings, cancel them, and accept (exactly the proposed slot) or decline a
+  proposed reschedule; only admins can confirm/edit/delete freely, or create
+  a booking on someone else's behalf (walk-ins).
+- `stylists`, `services`, `settings` — public read, admin write.
+- `alerts` — owner or admin; clients may only add plain alerts for themselves.
+- `waitlist` — managed by the salon; clients can only read their own entry.
+- Firebase Storage — closed to everyone. Images live in Cloudinary, uploaded
+  with short-lived per-folder signatures from `/api/cloudinary/sign`.
 
-## Data subject requests (GDPR/CCPA-style rights)
+## Server-side checks
 
-Already wired into the client profile page (My Account → Data & Privacy):
+- `/api/email` (free-text e-mail) is admin-only. A client's booking e-mails
+  and loyalty points come from `/api/appointments/notify`, which builds the
+  e-mail from the stored appointment and runs each event once per booking.
+- Every API route is rate-limited twice: per instance in `proxy.ts` and across
+  instances via Firestore (`lib/rateLimit.ts`).
 
-- **Export** — downloads a JSON of the client's own profile, appointments,
-  and notifications.
-- **Delete** — permanently deletes the client's Firestore data and their
-  Firebase Auth account, after a typed confirmation and password re-check.
+## Tests
 
-Note: deleting an account does **not** currently touch that client's
-`clientNotes` doc or their uploaded `reference-images`. If you want those
-cleaned up as part of account deletion too, that's a small addition to
-`AccountDeletionModal`'s deletion pipeline — say the word and I'll add it.
+- `npm run test:rules` — rules tests against the Firestore/Storage emulators.
+- `tests/api.emulator.mjs` — end-to-end API tests; see the header of that file
+  for how to start the emulators and dev server.
 
-## Also worth doing
+## Data subject requests (GDPR)
 
-Cloud Storage lifecycle rules or a periodic Cloud Function to enforce a data
-retention window (e.g. auto-delete appointment records N years after the
-visit) aren't set up here — that needs a scheduled Cloud Function, which is
-outside what a static Next.js app can do on its own. Worth adding once the
-business has settled on a retention policy.
+Wired into the client profile page (My Account → Data & Privacy):
+
+- **Export** — `/api/account/export` returns the client's profile, account
+  metadata, appointments, alerts, waitlist entries, staff notes and the list
+  of their uploaded reference photos.
+- **Delete** — `/api/account/delete` removes all of the above (including
+  staff notes and Cloudinary photos) and the Firebase Auth account, after a
+  typed confirmation and a fresh sign-in.
+
+Retention is enforced nightly by `/api/cron/cleanup` (Vercel Cron, see
+`vercel.json`).

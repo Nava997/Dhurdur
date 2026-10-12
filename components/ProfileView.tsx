@@ -13,7 +13,7 @@ const countryCodes = [
 ];
 
 export function ProfileView() {
-  const { t, currentUser, appointments, addNotification, requestPasswordOtp, updateUserPassword, updateAppointmentStatus, cancelOwnAppointment } = useApp();
+  const { t, currentUser, appointments, addNotification, requestPasswordOtp, updateUserPassword, acceptProposal, cancelOwnAppointment } = useApp();
   const confirmCancel = (id: string) => {
     if (window.confirm(t.profile?.cancelConfirm || "Diesen Termin wirklich stornieren?")) cancelOwnAppointment(id);
   };
@@ -290,7 +290,7 @@ export function ProfileView() {
                           <p className="text-blue-400 text-xs font-bold mb-2">⚠️ {t.profile?.newProposal || "Neuer Terminvorschlag vom Salon:"}</p>
                           <p className="text-white text-sm mb-3">{a.proposedDate} um {a.proposedTime} Uhr</p>
                           <div className="flex gap-2">
-                            <button onClick={() => updateAppointmentStatus(a.id, 'confirmed', true, undefined, a.proposedDate, a.proposedTime)} className="bg-blue-600 hover:bg-blue-500 text-white px-3 py-1.5 text-xs font-bold uppercase ">{t.profile?.acceptTime || "Zeit Akzeptieren"}</button>
+                            <button onClick={() => acceptProposal(a.id)} className="bg-blue-600 hover:bg-blue-500 text-white px-3 py-1.5 text-xs font-bold uppercase ">{t.profile?.acceptTime || "Zeit Akzeptieren"}</button>
                             <button onClick={() => confirmCancel(a.id)} className="border border-red-500/50 text-red-400 hover:bg-red-500/10 px-3 py-1.5 text-xs font-bold uppercase ">{t.profile?.declineProposal || "Ablehnen"}</button>
                           </div>
                         </div>
