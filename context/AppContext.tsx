@@ -4,7 +4,7 @@ import { auth, db, getGoogleProvider } from '../lib/firebase';
 import { fallbackTranslations, type TranslationData } from '../lib/translations';
 import { deleteSiteImage } from '../lib/uploadImage';
 export { fallbackTranslations };
-import { signInWithPopup, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged, sendPasswordResetEmail, sendEmailVerification, EmailAuthProvider, reauthenticateWithCredential, type User } from 'firebase/auth';
+import { signInWithPopup, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged, sendPasswordResetEmail, EmailAuthProvider, reauthenticateWithCredential } from 'firebase/auth';
 import { doc, setDoc, collection, onSnapshot, addDoc, updateDoc, deleteDoc, getDoc, DocumentReference, query, where } from 'firebase/firestore';
 
 type Language = string;
@@ -52,9 +52,6 @@ export interface AppContextType {
   t: TranslationData[string];
   isAdminAuth: boolean;
   currentUser: UserProfile | null;
-  emailVerified: boolean;
-  resendVerificationEmail: () => Promise<void>;
-  refreshEmailVerified: () => Promise<boolean>;
   usersDB: UserProfile[]; clientNotesDB: Record<string, string>; updateUserNotes: (id: string, notes: string) => Promise<void>;
   loginOAuth: (provider: 'Google') => Promise<void>;
   loginEmail: (email: string, pass: string) => Promise<void>;
@@ -95,7 +92,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
   const [isAdminAuth, setIsAdminAuth] = useState(false);
-  const [emailVerified, setEmailVerified] = useState(false);
   const [usersDB, setUsersDB] = useState<UserProfile[]>([]);
   const [clientNotesDB, setClientNotesDB] = useState<Record<string, string>>({});
 
@@ -192,7 +188,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     let unsubUser: (() => void) | null = null;
 
     const unsubAuth = onAuthStateChanged(auth, async (user) => {
-      setEmailVerified(!!user?.emailVerified);
       if (user) {
         unsubUser = onSnapshot(doc(db, 'users', user.uid), (docSnap) => {
           if (docSnap.exists()) {
@@ -458,53 +453,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         id: cred.user.uid, name, email, phone: cleanPhone, haircutCount: 0, role: 'user', hasUpdatedPassword: true
       });
       setPageRouter('profile');
-      // Bookings require a verified address (see firestore.rules).
-      try {
-        await sendVerification(cred.user);
-        addNotification(lang === 'de'
-          ? "Konto erstellt! Bitte bestätigen Sie Ihre E-Mail-Adresse über den Link, den wir Ihnen gesendet haben (ggf. im Spam-Ordner)."
-          : "Account created! Please confirm your email address using the link we sent you (check your spam folder).", 'success');
-      } catch (caught) {
-        console.error('Verification e-mail failed:', caught);
-        addNotification(lang === 'de'
-          ? "Konto erstellt, aber der Bestätigungslink konnte nicht gesendet werden. Bitte auf der Buchungsseite erneut anfordern."
-          : "Account created, but the confirmation link couldn't be sent. Please request it again on the booking page.", 'error');
-      }
+      addNotification("Account created successfully!", 'success');
     } catch (caught) { const error = caught as { code?: string; message: string };
       addNotification(error.message, 'error');
     }
-  };
-
-  // After clicking the link, the user returns straight to the booking page.
-  // The link's domain must be on Firebase Auth's authorized list, or no e-mail
-  // is sent (and a retry is then rate-limited). Only the bare domain is listed,
-  // so drop "www."; durdur-sw.de redirects back to www.
-  const sendVerification = async (user: User) => {
-    const origin = window.location.origin.replace('://www.', '://');
-    await sendEmailVerification(user, { url: `${origin}/#booking` });
-  };
-
-  const resendVerificationEmail = async () => {
-    if (!auth.currentUser) return;
-    try {
-      await sendVerification(auth.currentUser);
-      addNotification(lang === 'de' ? "Bestätigungslink gesendet — bitte prüfen Sie Ihr Postfach und den Spam-Ordner." : "Verification link sent — please check your inbox and spam folder.", 'success');
-    } catch (caught) { const error = caught as { code?: string; message: string };
-      addNotification(error.code === 'auth/too-many-requests'
-        ? (lang === 'de' ? "Bitte warten Sie einen Moment, bevor Sie einen neuen Link anfordern." : "Please wait a moment before requesting another link.")
-        : error.message, 'error');
-    }
-  };
-
-  // Picks up a verification done in another tab. The ID token is refreshed so
-  // Firestore rules see email_verified straight away.
-  const refreshEmailVerified = async () => {
-    const user = auth.currentUser;
-    if (!user) return false;
-    await user.reload();
-    if (user.emailVerified) await user.getIdToken(true);
-    setEmailVerified(user.emailVerified);
-    return user.emailVerified;
   };
 
   const resetPassword = async (email: string) => {
@@ -801,7 +753,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   return (
     <AppContext.Provider value={{
       lang, changeLanguage, isTranslatingUI, page, setPage: setPageRouter, t,
-      isAdminAuth, currentUser, emailVerified, resendVerificationEmail, refreshEmailVerified, usersDB, clientNotesDB, updateUserNotes, loginOAuth, loginEmail, registerEmail, resetPassword, requestPasswordOtp, updateUserPassword, logout,
+      isAdminAuth, currentUser, usersDB, clientNotesDB, updateUserNotes, loginOAuth, loginEmail, registerEmail, resetPassword, requestPasswordOtp, updateUserPassword, logout,
       servicesDB, addService, deleteService, productsDB, addProduct, deleteProduct,
       appointments, addAppointment, addAdminAppointment, updateAppointmentStatus, cancelOwnAppointment, acceptProposal, notifications, addNotification, getAvailableSlots,
       waitlist, removeFromWaitlist, notifyWaitlist,

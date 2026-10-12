@@ -80,11 +80,8 @@ service cloud.firestore {
       // Public availability is served PII-free by /api/available-slots.
       allow read: if isAdmin() || (request.auth != null && resource.data.userId == request.auth.uid);
 
-      // Customers need a verified e-mail address to book, so booking
-      // e-mails only ever go to an inbox the customer controls.
       allow create: if isAdmin() || (
         isOwner(request.resource.data.userId)
-        && request.auth.token.email_verified == true
         && request.resource.data.status == 'pending'
         && request.resource.data.usedReward == false
         && request.resource.data.keys().hasOnly([
