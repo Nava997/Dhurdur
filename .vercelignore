@@ -1,0 +1,11 @@
+# Keep secrets and local artefacts out of CLI deployments (Vercel builds
+# from source and uses the project's own environment variables).
+.env*
+!.env.local.template
+node_modules
+.next
+.vercel
+.git
+tsconfig.tsbuildinfo
+firestore-debug.log
+*.log
