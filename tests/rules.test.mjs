@@ -16,7 +16,7 @@ const PROJECT_ID = 'demo-dhurdur-rules';
 let env;
 
 // Verified allow-listed admin, and a user whose profile has role 'admin'.
-const ADMIN_EMAIL = 'rick.maity07@gmail.com';
+const ADMIN_EMAIL = 'durdurbarbershop@gmail.com';
 const alice = () => env.authenticatedContext('alice', { email: 'alice@example.com', email_verified: true }).firestore();
 const bob = () => env.authenticatedContext('bob', { email: 'bob@example.com', email_verified: true }).firestore();
 const guest = () => env.unauthenticatedContext().firestore();

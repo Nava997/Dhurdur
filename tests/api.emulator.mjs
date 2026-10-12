@@ -74,7 +74,7 @@ before(async () => {
   T.bob = await makeUser('bob', 'bob@example.com');
   T.staff = await makeUser('staff', 'staff@example.com', { role: 'admin' });
   // Uses the admin allow-list address but never verified it.
-  T.mallory = await makeUser('mallory', 'rick.maity07@gmail.com', { verified: false });
+  T.mallory = await makeUser('mallory', 'durdurbarbershop@gmail.com', { verified: false });
 
   const appt = (userId, extra = {}) => ({
     userId, name: `${userId} name`, phone: '+491709999999', services: ['Skin Fade'], totalDurationMins: 45,

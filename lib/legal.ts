@@ -5,8 +5,8 @@
 /** TODO(owner): legal name of the owner as registered with the Gewerbeamt. */
 export const OWNER_NAME = '[NAME DES INHABERS EINTRAGEN]';
 
-/** TODO(owner): a mailbox that is actually read (dhurdur.de does not exist). */
-export const CONTACT_EMAIL = '[E-MAIL-ADRESSE EINTRAGEN]';
+/** Owner's mailbox (given by the site operator 2026-10-12). */
+export const CONTACT_EMAIL = 'durdurbarbershop@gmail.com';
 
 export const LEGAL = {
   businessName: 'Dhurdur',
