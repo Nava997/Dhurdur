@@ -13,7 +13,7 @@ const countryCodes = [
 ];
 
 export function ProfileView() {
-  const { t, currentUser, appointments, addNotification, requestPasswordOtp, updateUserPassword, acceptProposal, cancelOwnAppointment } = useApp();
+  const { t, lang, currentUser, appointments, addNotification, requestPasswordOtp, updateUserPassword, acceptProposal, cancelOwnAppointment } = useApp();
   const confirmCancel = (id: string) => {
     if (window.confirm(t.profile?.cancelConfirm || "Diesen Termin wirklich stornieren?")) cancelOwnAppointment(id);
   };
@@ -69,33 +69,33 @@ export function ProfileView() {
     try {
       if (editEmail !== currentUser.email && auth.currentUser) {
         await verifyBeforeUpdateEmail(auth.currentUser, editEmail);
-        addNotification("Confirmation email sent! Please check your inbox.", "info");
+        addNotification(lang === 'de' ? "Bestätigungs-E-Mail gesendet — bitte Postfach prüfen." : "Confirmation email sent! Please check your inbox.", "info");
       }
       const fullPhone = `${editCountryCode}${editPhone}`.replace(/\s+/g, '');
       await updateDoc(doc(db, 'users', currentUser.id), { name: editName, phone: fullPhone });
-      addNotification("Profil erfolgreich aktualisiert!", "success");
+      addNotification(lang === 'de' ? "Profil erfolgreich aktualisiert!" : "Profile updated successfully!", "success");
       setActiveTab('overview');
     } catch (caught) { const err = caught as { code?: string; message: string }; addNotification(err.message, "error"); }
   };
 
   const handleSendPassOTP = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (newPass !== confirmPass) return addNotification("Passwords do not match.", "error");
-    if (newPass.length < 8) return addNotification("Password must be at least 8 characters long.", "error");
+    if (newPass !== confirmPass) return addNotification(lang === 'de' ? "Die Passwörter stimmen nicht überein." : "Passwords do not match.", "error");
+    if (newPass.length < 8) return addNotification(lang === 'de' ? "Das Passwort muss mindestens 8 Zeichen lang sein." : "Password must be at least 8 characters long.", "error");
     if (!/[A-Z]/.test(newPass) || !/[a-z]/.test(newPass) || !/[0-9]/.test(newPass) || !/[^A-Za-z0-9]/.test(newPass)) {
-      return addNotification("Password needs an uppercase letter, a lowercase letter, a number and a special character.", "error");
+      return addNotification(lang === 'de' ? "Das Passwort braucht einen Groß- und Kleinbuchstaben, eine Zahl und ein Sonderzeichen." : "Password needs an uppercase letter, a lowercase letter, a number and a special character.", "error");
     }
 
     try {
       await requestPasswordOtp();
       setIsVerifyingPassOTP(true);
-      addNotification("Confirmation code sent to your email!", "info");
+      addNotification(lang === 'de' ? "Bestätigungscode per E-Mail gesendet!" : "Confirmation code sent to your email!", "info");
     } catch (caught) { const err = caught as { code?: string; message: string }; addNotification(err.message || "Error sending code.", "error"); }
   };
 
   const handleVerifyPassOTP = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!/^\d{6}$/.test(inputPassOTP)) return addNotification("Invalid code. Please try again.", "error");
+    if (!/^\d{6}$/.test(inputPassOTP)) return addNotification(lang === 'de' ? "Ungültiger Code. Bitte erneut versuchen." : "Invalid code. Please try again.", "error");
     try {
       await updateUserPassword(oldPass, newPass, inputPassOTP);
       setOldPass(''); setNewPass(''); setConfirmPass(''); setInputPassOTP(''); setIsVerifyingPassOTP(false);

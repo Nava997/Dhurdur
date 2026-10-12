@@ -32,7 +32,7 @@ export async function downloadDataExport(uid?: string): Promise<void> {
 }
 
 export function DataExportButton() {
-  const { currentUser, addNotification } = useApp();
+  const { currentUser, addNotification, lang } = useApp();
   const [isExporting, setIsExporting] = useState(false);
 
   const handleExport = async () => {
@@ -40,7 +40,7 @@ export function DataExportButton() {
     setIsExporting(true);
     try {
       await downloadDataExport();
-      addNotification('Datenexport erfolgreich heruntergeladen!', 'success');
+      addNotification(lang === 'de' ? 'Datenexport erfolgreich heruntergeladen!' : 'Data export downloaded!', 'success');
     } catch (caught) {
       const error = caught as Error;
       console.error('Export failed:', error);

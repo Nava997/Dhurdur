@@ -25,7 +25,7 @@ const DELETION_STEPS: DeletionStep[] = [
 ];
 
 export function AccountDeletionModal({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
-  const { currentUser, addNotification, logout } = useApp();
+  const { currentUser, addNotification, logout, lang } = useApp();
   const [step, setStep] = useState(0);
   const [password, setPassword] = useState('');
   const [confirmText, setConfirmText] = useState('');
@@ -110,7 +110,7 @@ export function AccountDeletionModal({ isOpen, onClose }: { isOpen: boolean; onC
       updateStepStatus('auth', 'completed');
       updateStepStatus('complete', 'current');
 
-      addNotification('Your account and all data have been permanently deleted.', 'info');
+      addNotification(lang === 'de' ? 'Ihr Konto und alle Daten wurden endgültig gelöscht.' : 'Your account and all data have been permanently deleted.', 'info');
       logout();
       onClose();
 

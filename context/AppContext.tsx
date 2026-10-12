@@ -119,6 +119,28 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     };
   };
 
+  // Toast text in the visitor's language (German site; English for every other language).
+  const tr = (de: string, en: string) => (lang === 'de' ? de : en);
+
+  // Firebase's own error messages are English and technical ("Firebase: Error (auth/…)").
+  const authError = (caught: unknown) => {
+    const code = (caught as { code?: string }).code || '';
+    const known: Record<string, [string, string]> = {
+      'auth/invalid-credential': ['E-Mail oder Passwort ist falsch.', 'Wrong email or password.'],
+      'auth/wrong-password': ['E-Mail oder Passwort ist falsch.', 'Wrong email or password.'],
+      'auth/user-not-found': ['E-Mail oder Passwort ist falsch.', 'Wrong email or password.'],
+      'auth/invalid-email': ['Bitte eine gültige E-Mail-Adresse eingeben.', 'Please enter a valid email address.'],
+      'auth/missing-email': ['Bitte eine gültige E-Mail-Adresse eingeben.', 'Please enter a valid email address.'],
+      'auth/email-already-in-use': ['Für diese E-Mail-Adresse gibt es bereits ein Konto. Bitte anmelden.', 'An account with this email already exists. Please sign in.'],
+      'auth/weak-password': ['Das Passwort ist zu schwach.', 'The password is too weak.'],
+      'auth/too-many-requests': ['Zu viele Versuche. Bitte warten Sie einen Moment.', 'Too many attempts. Please wait a moment.'],
+      'auth/network-request-failed': ['Keine Verbindung. Bitte Internetverbindung prüfen.', 'No connection. Please check your internet.'],
+      'auth/popup-blocked': ['Das Anmeldefenster wurde blockiert. Bitte Pop-ups erlauben.', 'The sign-in window was blocked. Please allow pop-ups.'],
+    };
+    const [de, en] = known[code] || ['Etwas ist schiefgelaufen. Bitte erneut versuchen.', 'Something went wrong. Please try again.'];
+    return tr(de, en);
+  };
+
   const addNotification = (message: string, type: 'success' | 'info' | 'error' = 'info') => {
     const id = Date.now();
     setNotifications(prev => [...prev, { id, message, type }]);
@@ -161,7 +183,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         return;
       }
       if (newPage === 'admin' && (!currentUser || currentUser.role !== 'admin')) {
-        addNotification("Admin access required.", 'error');
+        addNotification(tr("Kein Zugriff: nur für Admins.", "Admin access required."), 'error');
         return;
       }
       const newUrl = newPage === 'home' ? window.location.pathname : `#${newPage}`;
@@ -339,13 +361,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       if (data.translatedDict) {
         setTranslations(prev => ({ ...prev, [newLang]: data.translatedDict }));
         setLang(newLang);
-        addNotification(`Interface in neuer Sprache geladen!`, 'success');
+        addNotification('Interface loaded in the new language!', 'success');
       } else {
-        addNotification(data.error || 'Übersetzung fehlgeschlagen.', 'error');
+        addNotification(tr('Übersetzung fehlgeschlagen.', 'Translation failed.'), 'error');
         setLang('de');
       }
     } catch {
-      addNotification('Übersetzung fehlgeschlagen.', 'error');
+      addNotification(tr('Übersetzung fehlgeschlagen.', 'Translation failed.'), 'error');
       setLang('de');
     } finally {
       setIsTranslatingUI(false);
@@ -424,10 +446,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       const provider = getGoogleProvider();
       await signInWithPopup(auth, provider);
       setPageRouter('profile');
-      addNotification(`Logged in with ${providerName}`, 'success');
+      addNotification(tr(`Angemeldet mit ${providerName}`, `Logged in with ${providerName}`), 'success');
     } catch (caught) { const error = caught as { code?: string; message: string };
       if (error.code === 'auth/popup-closed-by-user' || error.code === 'auth/cancelled-popup-request') return;
-      addNotification(error.message, 'error');
+      addNotification(authError(error), 'error');
     }
   };
 
@@ -435,13 +457,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     try {
       await signInWithEmailAndPassword(auth, email, pass);
       setPageRouter('profile');
-      addNotification("Login successful", 'success');
-    } catch (caught) { const error = caught as { code?: string; message: string }; addNotification(error.message, 'error'); }
+      addNotification(tr("Erfolgreich angemeldet.", "Login successful."), 'success');
+    } catch (caught) { addNotification(authError(caught), 'error'); }
   };
 
   const registerEmail = async (email: string, pass: string, name: string, phone?: string) => {
     if (pass.length < 8 || !/[A-Z]/.test(pass) || !/[a-z]/.test(pass) || !/[0-9]/.test(pass) || !/[^A-Za-z0-9]/.test(pass)) {
-      addNotification("Passwort: mind. 8 Zeichen, Groß- und Kleinbuchstabe, Zahl und Sonderzeichen.", 'error');
+      addNotification(tr("Passwort: mind. 8 Zeichen, Groß- und Kleinbuchstabe, Zahl und Sonderzeichen.", "Password: at least 8 characters, upper- and lowercase letter, number and special character."), 'error');
       return;
     }
     try {
@@ -453,18 +475,18 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         id: cred.user.uid, name, email, phone: cleanPhone, haircutCount: 0, role: 'user', hasUpdatedPassword: true
       });
       setPageRouter('profile');
-      addNotification("Account created successfully!", 'success');
-    } catch (caught) { const error = caught as { code?: string; message: string };
-      addNotification(error.message, 'error');
+      addNotification(tr("Konto erfolgreich erstellt!", "Account created successfully!"), 'success');
+    } catch (caught) {
+      addNotification(authError(caught), 'error');
     }
   };
 
   const resetPassword = async (email: string) => {
-    if (!email) return addNotification("Please enter your email address first.", 'error');
+    if (!email) return addNotification(tr("Bitte zuerst Ihre E-Mail-Adresse eingeben.", "Please enter your email address first."), 'error');
     try {
       await sendPasswordResetEmail(auth, email);
-      addNotification("Password reset email sent! Check your inbox.", 'success');
-    } catch (caught) { const error = caught as { code?: string; message: string }; addNotification(error.message, 'error'); }
+      addNotification(tr("E-Mail zum Zurücksetzen gesendet — bitte Postfach prüfen.", "Password reset email sent! Check your inbox."), 'success');
+    } catch (caught) { addNotification(authError(caught), 'error'); }
   };
 
   const logout = () => { signOut(auth); setPageRouter('home'); };
@@ -500,13 +522,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
     // A password change revokes existing sessions; sign straight back in.
     await signInWithEmailAndPassword(auth, email, newPass);
-    addNotification("Passwort erfolgreich aktualisiert!", "success");
+    addNotification(tr("Passwort erfolgreich aktualisiert!", "Password updated successfully!"), "success");
   };
 
   const updateUserNotes = async (id: string, notes: string) => {
     if (!isAdminAuth) return;
     await setDoc(doc(db, 'clientNotes', id), { notes, updatedAt: Date.now() }, { merge: true });
-    addNotification("Stylisten-Notizen gespeichert!", "success");
+    addNotification(tr("Stylisten-Notizen gespeichert!", "Stylist notes saved!"), "success");
   };
 
   // E-mails and loyalty points for a customer's own booking actions are
@@ -517,45 +539,51 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }).catch(() => {});
   };
 
-  // Admin only: /api/email rejects everyone else.
-  const sendDualEmail = async (uEmail: string | null, uSubj: string, uMsg: string, aSubj: string, aMsg: string) => {
-    try {
-      const headers = await getAuthHeaders();
-      if (uEmail) {
-        fetch('/api/email', { method: 'POST', headers, body: JSON.stringify({ email: uEmail, subject: uSubj, message: uMsg }) }).catch(()=>{});
-      }
-      if (aSubj && aMsg) {
-        fetch('/api/email', { method: 'POST', headers, body: JSON.stringify({ email: adminEmail, subject: aSubj, message: aMsg }) }).catch(()=>{});
-      }
-    } catch (e) {
-      console.error("Dual Email Execution Failed", e);
-    }
+  // Admin only: /api/email rejects everyone else. Resolves to whether the
+  // customer's e-mail actually went out, so toasts don't claim otherwise.
+  const sendDualEmail = async (uEmail: string | null, uSubj: string, uMsg: string, aSubj: string, aMsg: string): Promise<boolean> => {
+    const headers = await getAuthHeaders();
+    const send = (email: string, subject: string, message: string) =>
+      fetch('/api/email', { method: 'POST', headers, body: JSON.stringify({ email, subject, message }) })
+        .then(r => r.ok).catch(() => false);
+    const [customerSent] = await Promise.all([
+      uEmail ? send(uEmail, uSubj, uMsg) : Promise.resolve(false),
+      aSubj && aMsg ? send(adminEmail, aSubj, aMsg) : Promise.resolve(true),
+    ]);
+    return customerSent;
   };
+
+  // Admin toast after a status change: says whether the customer was e-mailed.
+  const statusToast = (doneDe: string, doneEn: string, emailed: boolean) =>
+    addNotification(emailed
+      ? tr(`${doneDe} — Kunde per E-Mail informiert.`, `${doneEn} — customer notified by email.`)
+      : tr(`${doneDe} — E-Mail an den Kunden konnte nicht gesendet werden.`, `${doneEn} — the email to the customer could not be sent.`),
+      emailed ? 'success' : 'error');
 
   const removeFromWaitlist = async (id: string) => {
     await deleteDoc(doc(db, 'waitlist', id));
-    addNotification("Von Warteliste entfernt.", 'info');
+    addNotification(tr("Von Warteliste entfernt.", "Removed from waitlist."), 'info');
   };
 
   const notifyWaitlist = async (item: WaitlistItem) => {
     const userDoc = await getDoc(doc(db, 'users', item.userId));
     const userEmail = userDoc.exists() ? userDoc.data().email : null;
-    if (userEmail) {
-      await sendDualEmail(
+    const sent = userEmail ? await sendDualEmail(
         userEmail,
         "Dhurdur: Warteliste Update - Freier Termin!",
         `Hallo ${item.name},\n\nGute Neuigkeiten! Ein Termin am ${item.date} bei ${item.stylist} ist gerade freigeworden.\n\nBitte besuche unsere Webseite, um ihn direkt zu buchen, bevor er weg ist!\n\nDein Dhurdur Team`,
         "", ""
-      );
-    }
-    addNotification("Kunde benachrichtigt!", 'success');
+      ) : false;
+    addNotification(sent
+      ? tr("Kunde per E-Mail benachrichtigt!", "Customer notified by email!")
+      : tr("E-Mail an den Kunden konnte nicht gesendet werden.", "The email to the customer could not be sent."), sent ? 'success' : 'error');
   };
 
   const addAdminAppointment = async (appt: Omit<Appointment, 'id'>) => {
     if (!isAdminAuth) return;
     const cleanAppt = Object.fromEntries(Object.entries(appt).filter(([, v]) => v !== undefined));
     await addDoc(collection(db, 'appointments'), { ...cleanAppt, loyaltyCounted: false });
-    addNotification("Gespeichert!", 'success');
+    addNotification(tr("Gespeichert!", "Saved!"), 'success');
   };
 
   const addAppointment = async (appt: Omit<Appointment, 'id'>): Promise<DocumentReference | undefined> => {
@@ -567,7 +595,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const docRef = await addDoc(collection(db, 'appointments'), cleanAppt);
     await notifyAppointment(docRef.id, 'booked');
 
-    addNotification("Appointment request sent!", 'success');
+    addNotification(tr("Terminanfrage gesendet!", "Appointment request sent!"), 'success');
     return docRef;
   };
 
@@ -580,7 +608,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
     await updateDoc(doc(db, 'appointments', id), { status: 'cancelled' });
     await notifyAppointment(id, 'cancelled');
-    addNotification(lang === 'de' ? "Termin storniert." : "Appointment cancelled.", 'info');
+    addNotification(tr("Termin storniert.", "Appointment cancelled."), 'info');
   };
 
   // Customer accepts the salon's proposed new time.
@@ -596,7 +624,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const tCommon = translations[lang]?.common || fallbackTranslations[lang]?.common || fallbackTranslations.de.common;
     await addDoc(collection(db, 'alerts'), { userId: appt.userId, message: `${tAlert.confirmed1} ${appt.proposedDate} ${tCommon.at} ${appt.proposedTime} ${tAlert.confirmed2}`, isRead: false, link: 'profile', createdAt: Date.now() });
     await notifyAppointment(id, 'accepted');
-    addNotification("Termin bestätigt!", 'success');
+    addNotification(tr("Termin bestätigt!", "Appointment confirmed!"), 'success');
   };
 
   // Admin only.
@@ -624,7 +652,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     await updateDoc(doc(db, 'appointments', id), updates);
 
     if (appt.status === 'blocked' || status === 'blocked' || appt.userId === 'walk-in' || appt.userId === 'block') {
-      addNotification("Status aktualisiert (Gesperrt/Walk-In).", 'success');
+      addNotification(tr("Status aktualisiert.", "Status updated."), 'success');
       return;
     }
 
@@ -649,72 +677,72 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
     if (status === 'confirmed' && appt.status !== 'confirmed') {
         await addDoc(collection(db, 'alerts'), { userId: appt.userId, message: `${tAlert.confirmed1} ${finalDate} ${tCommon.at} ${finalTime} ${tAlert.confirmed2}`, isRead: false, link: 'profile', createdAt: Date.now() });
-        await sendDualEmail(
+        const emailed = await sendDualEmail(
           userEmail,
           "Dhurdur: Terminbestätigung",
           `Hallo ${appt.name},\n\nDein Termin am ${finalDate} um ${finalTime} Uhr bei ${appt.stylist} ist offiziell bestätigt!\n\nWir freuen uns auf dich.\nDhurdur`,
           "Admin Info: Termin Bestätigt",
           `Der Termin für ${appt.name} am ${finalDate} um ${finalTime} Uhr wurde erfolgreich bestätigt.`
         );
-        addNotification("Status aktualisiert & Bestätigungs-E-Mails gesendet!", 'success');
+        statusToast("Termin bestätigt", "Appointment confirmed", emailed);
 
     } else if (status === 'cancelled' && appt.status !== 'cancelled') {
         await addDoc(collection(db, 'alerts'), { userId: appt.userId, message: `${tAlert.cancelled1} ${appt.date} ${tAlert.cancelled2}`, isRead: false, link: 'profile', createdAt: Date.now() });
-        await sendDualEmail(
+        const emailed = await sendDualEmail(
           userEmail,
           "Dhurdur: Terminabsage",
           `Hallo ${appt.name},\n\nLeider mussten wir deine Terminanfrage für den ${appt.date} um ${appt.time} Uhr stornieren (z.B. aufgrund von Überbuchungen oder Überschneidungen).\n\nBitte buche einen neuen Termin auf unserer Webseite.\n\nDein Dhurdur Team`,
           "Admin Info: Termin Storniert",
           `Der Termin für ${appt.name} am ${appt.date} um ${appt.time} Uhr wurde storniert.`
         );
-        addNotification("Termin abgelehnt & Absage-E-Mail gesendet!", 'info');
+        statusToast("Termin storniert", "Appointment cancelled", emailed);
 
     } else if (status === 'proposed' && appt.status !== 'proposed') {
         await addDoc(collection(db, 'alerts'), { userId: appt.userId, message: `${tAlert.proposed1} ${proposedDate} ${tCommon.at} ${proposedTime}. ${tAlert.proposed2}`, isRead: false, link: 'profile', createdAt: Date.now() });
-        await sendDualEmail(
+        const emailed = await sendDualEmail(
           userEmail,
           "Dhurdur: Terminvorschlag / Bitte bestätigen",
           `Hallo ${appt.name},\n\nWir mussten deinen Termin am ${appt.date} um ${appt.time} leider verschieben.\n\nWir schlagen stattdessen vor:\nNeues Datum: ${proposedDate}\nNeue Uhrzeit: ${proposedTime}\n\nBitte logge dich auf unserer Webseite in dein Profil ein, um diesen neuen Termin zu akzeptieren oder abzulehnen.\n\nDein Dhurdur Team`,
           "Admin Info: Termin verschoben (Kunde muss bestätigen)",
           `Du hast einen neuen Terminvorschlag an ${appt.name} gesendet. Neues Datum: ${proposedDate} um ${proposedTime} Uhr. Wartet auf Kundenbestätigung.`
         );
-        addNotification("Neuer Termin vorgeschlagen & E-Mail an Kunden gesendet!", 'info');
+        statusToast("Neuer Termin vorgeschlagen", "New time proposed", emailed);
 
     } else if (notes !== undefined) {
-      addNotification("Notizen gespeichert.", 'success');
+      addNotification(tr("Notizen gespeichert.", "Notes saved."), 'success');
     }
   };
 
-  const addService = async (s: Omit<ServiceItem, 'id'>) => { await addDoc(collection(db, 'services'), s); addNotification("Added!", 'success'); };
-  const deleteService = async (id: string) => { await deleteDoc(doc(db, 'services', id)); addNotification("Deleted.", 'info'); };
+  const addService = async (s: Omit<ServiceItem, 'id'>) => { await addDoc(collection(db, 'services'), s); addNotification(tr("Hinzugefügt!", "Added!"), 'success'); };
+  const deleteService = async (id: string) => { await deleteDoc(doc(db, 'services', id)); addNotification(tr("Gelöscht.", "Deleted."), 'info'); };
 
-  const addProduct = async (p: Omit<ProductItem, 'id'>) => { await addDoc(collection(db, 'products'), p); addNotification("Added!", 'success'); };
+  const addProduct = async (p: Omit<ProductItem, 'id'>) => { await addDoc(collection(db, 'products'), p); addNotification(tr("Hinzugefügt!", "Added!"), 'success'); };
   const deleteProduct = async (id: string) => {
     const image = productsDB.find(p => p.id === id)?.image;
     await deleteDoc(doc(db, 'products', id));
     deleteSiteImage(image);
-    addNotification("Deleted.", 'info');
+    addNotification(tr("Gelöscht.", "Deleted."), 'info');
   };
 
   // Phase 4 Stylist & Settings Updates
-  const addStylist = async (s: Omit<StylistItem, 'id'>) => { await addDoc(collection(db, 'stylists'), s); addNotification("Stylist gespeichert!", 'success'); };
+  const addStylist = async (s: Omit<StylistItem, 'id'>) => { await addDoc(collection(db, 'stylists'), s); addNotification(tr("Stylist gespeichert!", "Stylist saved!"), 'success'); };
   const deleteStylist = async (id: string) => {
     const photo = stylistsDB.find(s => s.id === id)?.photoURL;
     await deleteDoc(doc(db, 'stylists', id));
     deleteSiteImage(photo);
-    addNotification("Stylist entfernt.", 'info');
+    addNotification(tr("Stylist entfernt.", "Stylist removed."), 'info');
   };
   const updateStylist = async (id: string, changes: Partial<Omit<StylistItem, 'id'>>) => {
     const oldPhoto = stylistsDB.find(s => s.id === id)?.photoURL;
     await updateDoc(doc(db, 'stylists', id), changes);
     if (changes.photoURL !== undefined && oldPhoto !== changes.photoURL) deleteSiteImage(oldPhoto);
-    addNotification("Stylist gespeichert!", 'success');
+    addNotification(tr("Stylist gespeichert!", "Stylist saved!"), 'success');
   };
   const updateGeneralSettings = async (settings: Partial<GeneralSettings>) => {
     if (!isAdminAuth) return;
     // merge: settings/general may not exist yet on a fresh project.
     await setDoc(doc(db, 'settings', 'general'), settings, { merge: true });
-    addNotification("Einstellungen gespeichert!", 'success');
+    addNotification(tr("Einstellungen gespeichert!", "Settings saved!"), 'success');
   };
 
   const t = translations[lang] || fallbackTranslations[lang] || fallbackTranslations.de;

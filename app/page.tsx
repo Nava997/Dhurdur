@@ -89,6 +89,18 @@ function ToastContainer() {
 // ==========================================
 // 3. MOCK ADMIN DASHBOARD
 // ==========================================
+const STATUS_LABELS: Record<string, [string, string]> = {
+  pending: ['Ausstehend', 'Pending'],
+  confirmed: ['Bestätigt', 'Confirmed'],
+  cancelled: ['Storniert', 'Cancelled'],
+  proposed: ['Vorgeschlagen', 'Proposed'],
+  blocked: ['Gesperrt', 'Blocked'],
+};
+const statusLabel = (status: string, lang: string) => {
+  const label = STATUS_LABELS[status];
+  return label ? (lang === 'de' ? label[0] : label[1]) : status;
+};
+
 function AdminDashboard({ onLogout, onPreviewSite }: { onLogout: () => void; onPreviewSite: () => void }) {
   const [activeTab, setActiveTab] = useState('Dashboard');
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -229,7 +241,7 @@ function AdminDashboard({ onLogout, onPreviewSite }: { onLogout: () => void; onP
                   <td className="px-6 py-4 text-zinc-400">{row.stylist}</td>
                   <td className="px-6 py-4">
                     <span className={`px-2 py-1 text-xs border ${row.status === 'confirmed' ? 'border-green-900 text-green-500' : row.status === 'cancelled' ? 'border-red-900 text-red-500' : 'border-zinc-800 text-zinc-500'}`}>
-                      {row.status}
+                      {statusLabel(row.status, lang)}
                     </span>
                   </td>
                 </tr>
@@ -328,7 +340,7 @@ function AdminDashboard({ onLogout, onPreviewSite }: { onLogout: () => void; onP
                   <td className="px-6 py-4 text-zinc-400">{row.services.join(', ')}</td>
                   <td className="px-6 py-4">
                     <span className={`px-2 py-1 text-xs border ${row.status === 'confirmed' ? 'border-green-900 text-green-500' : row.status === 'cancelled' ? 'border-red-900 text-red-500' : 'border-zinc-800 text-zinc-500'}`}>
-                      {row.status}
+                      {statusLabel(row.status, lang)}
                     </span>
                   </td>
                   <td className="px-6 py-4 text-right space-x-3">
