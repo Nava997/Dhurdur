@@ -84,6 +84,10 @@ service cloud.firestore {
       allow update: if isAdmin() || (
         isOwner(resource.data.userId) && (
           (changed().hasOnly(['referenceImage']) && validReferenceImage(request.resource.data)) ||
+          // Customers may cancel their own open booking (status only).
+          (resource.data.status in ['pending', 'confirmed'] &&
+            request.resource.data.status == 'cancelled' &&
+            changed().hasOnly(['status'])) ||
           (
             resource.data.status == 'proposed' &&
             (

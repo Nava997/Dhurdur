@@ -13,9 +13,9 @@ const RATE_LIMIT_CONFIG: Record<string, { windowMs: number; maxRequests: number 
   '/api/email': { windowMs: 60 * 1000, maxRequests: 10 },     // 10 emails per minute
   '/api/translate-ui': { windowMs: 60 * 1000, maxRequests: 5 }, // 5 UI translations per minute
   '/api/account/delete': { windowMs: 60 * 1000, maxRequests: 3 },
+  '/api/account/export': { windowMs: 60 * 1000, maxRequests: 5 },
   '/api/cloudinary/sign': { windowMs: 60 * 1000, maxRequests: 20 },
   '/api/cloudinary/delete': { windowMs: 60 * 1000, maxRequests: 30 },
-  '/api/consent-log': { windowMs: 60 * 1000, maxRequests: 10 },
   // Default for other API routes
   'default': { windowMs: 60 * 1000, maxRequests: 60 },        // 60 requests per minute
 };

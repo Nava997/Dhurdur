@@ -62,6 +62,7 @@ export interface AppContextType {
   addAppointment: (appt: Omit<Appointment, 'id'>) => Promise<DocumentReference | undefined>;
   addAdminAppointment: (appt: Omit<Appointment, 'id'>) => Promise<void>;
   updateAppointmentStatus: (id: string, status: Appointment['status'], sendsms: boolean, notes?: string, proposedDate?: string, proposedTime?: string) => Promise<void>;
+  cancelOwnAppointment: (id: string) => Promise<void>;
   servicesDB: ServiceItem[]; addService: (s: Omit<ServiceItem, 'id'>) => Promise<void>; deleteService: (id: string) => Promise<void>;
   productsDB: ProductItem[]; addProduct: (p: Omit<ProductItem, 'id'>) => Promise<void>; deleteProduct: (id: string) => Promise<void>;
   updateProductStock: (id: string, newStock: number) => Promise<void>;
@@ -96,7 +97,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [productsDB, setProductsDB] = useState<ProductItem[]>([]);
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [publicAppointments, setPublicAppointments] = useState<
-    Pick<Appointment, "date" | "time" | "stylist" | "totalDurationMins" | "status" | "proposedTime">[]
+    Pick<Appointment, "date" | "time" | "stylist" | "totalDurationMins" | "status" | "proposedDate" | "proposedTime">[]
   >([]);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [alerts, setAlerts] = useState<Alert[]>([]);
@@ -354,6 +355,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     return h * 60 + m;
   };
 
+  // A pending proposal occupies the proposed slot, not the original one.
+  const effectiveDate = (a: { status: string; date: string; proposedDate?: string }) =>
+    (a.status === 'proposed' && a.proposedDate) ? a.proposedDate : a.date;
+
   const getAvailableSlots = (date: string, stylist: string, requiredDuration: number = 60) => {
     if (!date) return initialSlots.map(s => ({ ...s, isBooked: false }));
 
@@ -381,7 +386,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       let isBooked = false;
       if (stylist && stylist !== 'Egal (Wer frei ist)' && stylist !== 'Any' && stylist !== translations[lang]?.booking?.stylistAny) {
         isBooked = publicAppointments.some(a => {
-          if (a.date !== date || (a.status !== 'confirmed' && a.status !== 'pending' && a.status !== 'proposed' && a.status !== 'blocked')) return false;
+          if (effectiveDate(a) !== date || (a.status !== 'confirmed' && a.status !== 'pending' && a.status !== 'proposed' && a.status !== 'blocked')) return false;
           if (a.stylist !== stylist && a.stylist !== 'Egal (Wer frei ist)' && a.stylist !== 'Any' && a.stylist !== translations[lang]?.booking?.stylistAny) return false;
 
           const aStart = (a.status === 'proposed' && a.proposedTime) ? timeToMins(a.proposedTime) : timeToMins(a.time);
@@ -396,7 +401,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         let overlaps = 0;
         realStylists.forEach(sName => {
           const sBooked = publicAppointments.some(a => {
-            if (a.date !== date || (a.status !== 'confirmed' && a.status !== 'pending' && a.status !== 'proposed' && a.status !== 'blocked')) return false;
+            if (effectiveDate(a) !== date || (a.status !== 'confirmed' && a.status !== 'pending' && a.status !== 'proposed' && a.status !== 'blocked')) return false;
             if (a.stylist !== sName && a.stylist !== 'Egal (Wer frei ist)' && a.stylist !== 'Any' && a.stylist !== translations[lang]?.booking?.stylistAny) return false;
 
             const aStart = (a.status === 'proposed' && a.proposedTime) ? timeToMins(a.proposedTime) : timeToMins(a.time);
@@ -592,6 +597,37 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     return docRef;
   };
 
+  // Customer cancels (or declines a proposal for) their own booking. Separate
+  // from updateAppointmentStatus, whose emails are worded as the salon cancelling.
+  const cancelOwnAppointment = async (id: string) => {
+    const appt = appointments.find(a => a.id === id);
+    if (!currentUser || !appt || appt.userId !== currentUser.id) return;
+    if (!['pending', 'confirmed', 'proposed'].includes(appt.status)) return;
+
+    await updateDoc(doc(db, 'appointments', id), { status: 'cancelled' });
+    if (!appt.usedReward) {
+      await updateDoc(doc(db, 'users', currentUser.id), { haircutCount: Math.max(0, currentUser.haircutCount - 1) });
+    }
+
+    await sendDualEmail(
+      currentUser.email,
+      "Dhurdur: Termin storniert",
+      `Hallo ${appt.name},
+
+dein Termin am ${appt.date} um ${appt.time} Uhr bei ${appt.stylist} wurde wie gewünscht storniert.
+
+Du kannst jederzeit einen neuen Termin auf unserer Webseite buchen.
+
+Dein Dhurdur Team`,
+      "Kunde hat Termin storniert",
+      `${appt.name} (${appt.phone}) hat den Termin am ${appt.date} um ${appt.time} Uhr bei ${appt.stylist} storniert.
+Leistungen: ${appt.services.join(', ')}
+
+Der Zeitraum ist wieder frei.`
+    );
+    addNotification(lang === 'de' ? "Termin storniert." : "Appointment cancelled.", 'info');
+  };
+
   const updateAppointmentStatus = async (id: string, status: Appointment['status'], sendsms: boolean, notes?: string, proposedDate?: string, proposedTime?: string) => {
     const appt = appointments.find(a => a.id === id);
     if (!appt) return;
@@ -748,7 +784,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       lang, setLang, changeLanguage, isTranslatingUI, page, setPage: setPageRouter, t, updateTranslation,
       isAdminAuth, currentUser, usersDB, clientNotesDB, updateUserNotes, loginOAuth, loginEmail, registerEmail, resetPassword, requestPasswordOtp, updateUserPassword, logout,
       servicesDB, addService, deleteService, productsDB, addProduct, deleteProduct, updateProductStock,
-      appointments, addAppointment, addAdminAppointment, updateAppointmentStatus, notifications, addNotification, getAvailableSlots,
+      appointments, addAppointment, addAdminAppointment, updateAppointmentStatus, cancelOwnAppointment, notifications, addNotification, getAvailableSlots,
       waitlist, addToWaitlist, removeFromWaitlist, notifyWaitlist, resendConfirmation,
       stylistsDB, addStylist, deleteStylist, updateStylist, generalSettings, updateGeneralSettings,
       alerts, markAlertRead, clearAlerts,

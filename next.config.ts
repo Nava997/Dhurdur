@@ -5,11 +5,12 @@ const authDomain = process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN || "*.firebaseap
 const csp = [
   "default-src 'self'",
   // 'unsafe-eval' is only needed by the dev server (React Refresh), not production.
-  `script-src 'self' 'unsafe-inline'${process.env.NODE_ENV === 'development' ? " 'unsafe-eval'" : ''} https://apis.google.com https://www.gstatic.com https://www.googletagmanager.com`,
-  "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
-  "font-src 'self' data: https://fonts.gstatic.com",
-  "img-src 'self' data: https: blob: https://images.unsplash.com https://firebasestorage.googleapis.com https://res.cloudinary.com",
-  `connect-src 'self' https://api.cloudinary.com https://*.firebaseio.com https://*.googleapis.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://api-free.deepl.com https://api.deepl.com wss://*.firebaseio.com https://*.google-analytics.com https://*.analytics.google.com https://www.googletagmanager.com https://firebasestorage.googleapis.com${process.env.NEXT_PUBLIC_USE_FIREBASE_EMULATORS === 'true' ? ' http://127.0.0.1:9099 http://127.0.0.1:8080 ws://127.0.0.1:8080 http://127.0.0.1:9199' : ''}`,
+  `script-src 'self' 'unsafe-inline'${process.env.NODE_ENV === 'development' ? " 'unsafe-eval'" : ''} https://apis.google.com https://www.gstatic.com`,
+  "style-src 'self' 'unsafe-inline'",
+  "font-src 'self' data:",
+  // Stock photos are served via /_next/image so visitors never contact Unsplash directly.
+  "img-src 'self' data: blob: https://res.cloudinary.com",
+  `connect-src 'self' https://api.cloudinary.com https://*.firebaseio.com https://*.googleapis.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com wss://*.firebaseio.com${process.env.NEXT_PUBLIC_USE_FIREBASE_EMULATORS === 'true' ? ' http://127.0.0.1:9099 http://127.0.0.1:8080 ws://127.0.0.1:8080 http://127.0.0.1:9199' : ''}`,
   `frame-src 'self' https://accounts.google.com https://${authDomain}`,
   "frame-ancestors 'none'",
   "base-uri 'self'",
@@ -18,6 +19,11 @@ const csp = [
 ].join("; ");
 
 const nextConfig: NextConfig = {
+  images: {
+    // Unsplash sample photos are fetched server-side by the image optimizer;
+    // see lib/localImage.ts.
+    remotePatterns: [{ protocol: 'https', hostname: 'images.unsplash.com', pathname: '/**' }],
+  },
   async headers() {
     return [
       {

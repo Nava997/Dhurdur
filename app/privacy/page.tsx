@@ -1,9 +1,14 @@
 import Link from "next/link";
+import { LEGAL } from "@/lib/legal";
 
 export const metadata = {
   title: "Datenschutzerklärung | Dhurdur",
-  description: "Wie Dhurdur Ihre Daten sammelt, nutzt und schützt.",
+  description: "Wie Dhurdur Ihre Daten verarbeitet und schützt.",
 };
+
+// Keep every statement here in sync with what the code actually does:
+// retention periods → app/api/cron/cleanup, export → app/api/account/export,
+// erasure → app/api/account/delete, business details → lib/legal.ts.
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -11,6 +16,27 @@ function Section({ title, children }: { title: string; children: React.ReactNode
       <h2 className="text-xl font-serif text-gold-400 mb-3">{title}</h2>
       <div className="text-zinc-300 text-sm leading-relaxed space-y-3">{children}</div>
     </section>
+  );
+}
+
+function Table({ head, rows }: { head: string[]; rows: string[][] }) {
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full text-sm border-collapse">
+        <thead>
+          <tr className="border-b border-zinc-700">
+            {head.map(h => <th key={h} className="text-left p-2 font-medium">{h}</th>)}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((r, i) => (
+            <tr key={i} className="border-b border-zinc-800 align-top">
+              {r.map((c, j) => <td key={j} className="p-2">{c}</td>)}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   );
 }
 
@@ -23,222 +49,247 @@ export default function PrivacyPolicy() {
         </Link>
 
         <h1 className="text-3xl md:text-4xl font-serif mt-6 mb-2">Datenschutzerklärung</h1>
-        <p className="text-zinc-500 text-xs uppercase tracking-widest mb-12">Stand: 09.09.2026</p>
+        <p className="text-zinc-500 text-xs uppercase tracking-widest mb-12">Stand: {LEGAL.policyDate}</p>
 
         <Section title="1. Verantwortlicher">
           <p>
-            Dhurdur<br />
-            Inh. Oliver Hayes<br />
-            Obere Str. 30<br />
-            97421 Schweinfurt<br />
-            Telefon: 01523 2163823<br />
-            E-Mail: datenschutz@dhurdur.de
-          </p>
-        </Section>
-
-        <Section title="2. Verarbeitungsübersicht">
-          <p>Wir verarbeiten personenbezogene Daten bei Website-Besuch, Online-Buchung, Kundenkonto, Kommunikation und Analyse.</p>
-          <table className="w-full text-sm border-collapse mb-4">
-            <thead>
-              <tr className="border-b border-zinc-700">
-                <th className="text-left p-2">Daten</th>
-                <th className="text-left p-2">Zweck</th>
-                <th className="text-left p-2">Rechtsgrundlage</th>
-                <th className="text-left p-2">Speicherdauer</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr className="border-b border-zinc-800">
-                <td className="p-2">IP, Browser, Zeit, Seiten</td>
-                <td className="p-2">Sicherheit, Fehleranalyse</td>
-                <td className="p-2">Art. 6 Abs. 1 lit. f DSGVO</td>
-                <td className="p-2">30 Tage / 1 Jahr</td>
-              </tr>
-              <tr className="border-b border-zinc-800">
-                <td className="p-2">Name, E-Mail, Telefon, Services</td>
-                <td className="p-2">Terminkoordination, Erinnerung</td>
-                <td className="p-2">Art. 6 Abs. 1 lit. b DSGVO</td>
-                <td className="p-2">3 Jahre nach Termin</td>
-              </tr>
-              <tr className="border-b border-zinc-800">
-                <td className="p-2">Name, E-Mail, Passwort-Hash</td>
-                <td className="p-2">Kontoverwaltung, Login, Historie</td>
-                <td className="p-2">Art. 6 Abs. 1 lit. b DSGVO</td>
-                <td className="p-2">Bis Konto-Löschung + 30 Tage</td>
-              </tr>
-              <tr className="border-b border-zinc-800">
-                <td className="p-2">E-Mail, Telefon, Inhalt</td>
-                <td className="p-2">Bestätigung, Erinnerung, Reset</td>
-                <td className="p-2">Art. 6 Abs. 1 lit. b DSGVO</td>
-                <td className="p-2">1 Jahr nach Versand</td>
-              </tr>
-              <tr className="border-b border-zinc-800">
-                <td className="p-2">Pseudonyme Nutzer-ID, Events</td>
-                <td className="p-2">Website-Optimierung (Einwilligung)</td>
-                <td className="p-2">Art. 6 Abs. 1 lit. a DSGVO</td>
-                <td className="p-2">14 Monate</td>
-              </tr>
-            </tbody>
-          </table>
-        </Section>
-
-        <Section title="3. Hosting & Server-Logfiles">
-          <p>
-            Diese Website wird bei Vercel Inc. (USA) gehostet, mit Edge-Netzwerk in der EU.
-            Bei jedem Aufruf erfasst der Hosting-Anbieter automatisch technische Zugriffsdaten
-            (IP-Adresse, Datum/Uhrzeit, aufgerufene Seite, Referrer, Browsertyp) in Server-Logfiles.
-            Rechtsgrundlage: Art. 6 Abs. 1 lit. f DSGVO (berechtigtes Interesse an sicherem Betrieb).
-            Logfiles werden nach 30 Tagen gelöscht.
-            Ein Auftragsverarbeitungsvertrag (AVV) mit Vercel besteht.
-            EU-Standardvertragsklauseln (SCC) für US-Übermittlung liegen vor.
-          </p>
-        </Section>
-
-        <Section title="4. Online-Buchung & Kundenkonto">
-          <p>
-            Bei der Buchung verarbeiten wir Name, E-Mail, Telefon, gewünschte Services,
-            Stylist-Präferenz, Terminwunsch, Notizen. Rechtsgrundlage: Art. 6 Abs. 1 lit. b DSGVO
-            (Vertragsanbahnung). Daten werden 3 Jahre nach letztem Termin gespeichert
-            (steuerrechtliche Aufbewahrung).
+            {LEGAL.businessName}<br />
+            Inh. {LEGAL.ownerName}<br />
+            {LEGAL.street}<br />
+            {LEGAL.city}<br />
+            Telefon: {LEGAL.phone}<br />
+            E-Mail: {LEGAL.email}
           </p>
           <p>
-            Registrierung: Name, E-Mail, Telefon, Passwort-Hash.
-            Verifizierung per E-Mail (Firebase). Social Login via Google möglich.
-            Rechtsgrundlage: Art. 6 Abs. 1 lit. b DSGVO.
+            Ein Datenschutzbeauftragter ist nicht bestellt, da die gesetzlichen Voraussetzungen
+            (§ 38 BDSG) nicht vorliegen. Bei Fragen zum Datenschutz wenden Sie sich bitte direkt an uns.
           </p>
         </Section>
 
-        <Section title="5. Referenzbilder (Cloudinary)">
+        <Section title="2. Überblick">
           <p>
-            Optional können Sie bei der Buchung ein Referenzbild hochladen (z. B. Haarstil-Vorlage).
-            Das Bild wird vor dem Hochladen in Ihrem Browser verkleinert; dabei werden alle
-            EXIF-Metadaten (z. B. GPS-Standort, Kameradaten) entfernt. Gespeichert wird es beim
-            Bilddienst Cloudinary in einem nur Ihrem Konto zugeordneten Ordner. Das Bild ist nur mit
-            Ihrem Termin verknüpft, wird mit dem Termin nach 3 Jahren oder sofort bei Löschung Ihres
-            Kontos entfernt. Rechtsgrundlage: Art. 6 Abs. 1 lit. b DSGVO.
+            Wir verarbeiten personenbezogene Daten nur, soweit es für den Betrieb dieser Website, Ihr
+            Kundenkonto und die Terminbuchung erforderlich ist. Wir setzen <strong>keine</strong>{" "}
+            Analyse-, Tracking- oder Werbedienste ein und erstellen keine Nutzungsprofile.
           </p>
         </Section>
 
-        <Section title="6. Cookies & TTDSG §25">
+        <Section title="3. Hosting und Server-Logfiles">
           <p>
-            Notwendige Cookies (Sitzung, Sicherheit, Sprache) – immer aktiv, keine Einwilligung nötig
-            (§25 Abs. 2 Nr. 2 TTDSG). Analytics-Cookies (Firebase Analytics) – nur mit Einwilligung
-            (Art. 6 Abs. 1 lit. a DSGVO). Speicherdauer Analytics: 14 Monate.
-            Sie können Einwilligung jederzeit widerrufen über &quot;Cookie-Einstellungen&quot; im Footer.
+            Die Website wird bei der Vercel Inc., 440 N Barranca Ave #4133, Covina, CA 91723, USA
+            gehostet. Die Server-Funktionen, die Ihre Buchungs- und Kontodaten verarbeiten, laufen im
+            Rechenzentrum Frankfurt am Main. Seitenaufrufe werden über das weltweite Netzwerk von
+            Vercel ausgeliefert.
           </p>
-        </Section>
-
-        <Section title="7. Firebase / Google / DeepL">
           <p>
-            Authentifizierung via Firebase Authentication (Google Ireland Ltd., EU).
-            Social Login via Google (Google Ireland Ltd., EU).
-            UI-Übersetzung via DeepL SE (Deutschland, EU).
-            Keine personenbezogenen Daten an DeepL.
+            Beim Aufruf der Website verarbeitet Vercel technisch notwendige Zugriffsdaten (IP-Adresse,
+            Datum und Uhrzeit, aufgerufene Adresse, Browsertyp) in Server-Logs. Für sicherheitsrelevante
+            Aktionen (z. B. Passwortänderung, Datenexport, Kontolöschung) protokollieren wir zusätzlich
+            Zeitpunkt, Aktion, Nutzer-ID, IP-Adresse und Browsertyp. Diese Logs werden nur kurzzeitig
+            bei Vercel vorgehalten und automatisch gelöscht.
+          </p>
+          <p>
+            Rechtsgrundlage: Art. 6 Abs. 1 lit. f DSGVO (berechtigtes Interesse an einem sicheren und
+            stabilen Betrieb). Mit Vercel besteht ein Vertrag zur Auftragsverarbeitung (Art. 28 DSGVO).
+          </p>
+          <p>
+            Bilder auf dieser Website werden über unseren eigenen Server ausgeliefert; Ihr Browser
+            stellt dafür keine Verbindung zu externen Bildanbietern her (Ausnahme: von uns
+            hochgeladene Fotos, siehe Abschnitt 7).
           </p>
         </Section>
 
-        <Section title="8. Auftragsverarbeiter">
+        <Section title="4. Kundenkonto">
+          <p>
+            Für Online-Buchungen benötigen Sie ein Kundenkonto. Wir verarbeiten dabei Name,
+            E-Mail-Adresse, optional Ihre Telefonnummer, Ihr Passwort (nur als verschlüsselter Hash)
+            sowie Ihre Treuepunkte. Sie können sich alternativ mit Ihrem Google-Konto anmelden; Google
+            übermittelt uns dann Ihren Namen und Ihre E-Mail-Adresse.
+          </p>
+          <p>
+            Anmeldung und Datenbank laufen über Google Firebase (Google Ireland Limited, Gordon House,
+            Barrow Street, Dublin 4, Irland). Die Datenbank (Cloud Firestore) befindet sich in
+            Frankfurt am Main. Für die Anmeldung (Firebase Authentication) kann eine Verarbeitung auch
+            in den USA erfolgen (siehe Abschnitt 10).
+          </p>
+          <p>
+            Rechtsgrundlage: Art. 6 Abs. 1 lit. b DSGVO (Vertrag bzw. vorvertragliche Maßnahmen).
+            Ihr Konto bleibt bestehen, bis Sie es löschen. Die Löschung können Sie jederzeit selbst
+            im Profil unter „Konto löschen“ auslösen; dabei werden Konto, Termine, Benachrichtigungen,
+            Wartelisten-Einträge, interne Notizen und hochgeladene Fotos sofort entfernt.
+          </p>
+        </Section>
+
+        <Section title="5. Online-Terminbuchung">
+          <p>
+            Bei einer Buchung verarbeiten wir Name, Telefonnummer, gewünschte Leistung, Stylist,
+            Datum und Uhrzeit, Ihre optionalen Wünsche/Notizen und ein optionales Referenzbild. Der
+            Salon kann einen Termin bestätigen, absagen oder einen neuen Termin vorschlagen; Sie
+            können Termine im Profil stornieren.
+          </p>
+          <p>
+            <strong>Bitte tragen Sie keine Gesundheitsangaben</strong> (z. B. Allergien oder
+            Hauterkrankungen) in das Notizfeld ein — sprechen Sie diese lieber direkt im Salon an.
+          </p>
+          <p>
+            Rechtsgrundlage: Art. 6 Abs. 1 lit. b DSGVO. Nach dem Termin bewahren wir die Buchung
+            3 Jahre auf, um Rückfragen und Ansprüche klären zu können (Art. 6 Abs. 1 lit. f DSGVO;
+            regelmäßige Verjährungsfrist § 195 BGB); danach wird sie automatisch gelöscht.
+          </p>
+          <p>
+            Damit andere Kunden freie Zeiten sehen können, zeigt die Website belegte Zeitfenster an —
+            ohne Namen oder andere Angaben zu Ihrer Person.
+          </p>
+        </Section>
+
+        <Section title="6. E-Mails, Benachrichtigungen und Warteliste">
+          <p>
+            Wir senden Ihnen E-Mails zu Ihrer Buchung (Eingang, Bestätigung, Terminvorschlag,
+            Absage/Stornierung) und zur Passwortänderung (Bestätigungscode). Der Salon erhält eine
+            Kopie der Buchungsdaten per E-Mail. Versanddienstleister: {LEGAL.emailProvider}.
+            Zusätzlich erscheinen Hinweise in Ihrem Profil (Glocken-Symbol); diese werden nach 30 Tagen
+            gelöscht. Wir versenden keine Werbung oder Newsletter.
+          </p>
+          <p>
+            Wenn Sie sich auf die Warteliste setzen, speichern wir Name, Telefonnummer, Wunschdatum
+            und Stylist, um Sie bei einem frei werdenden Termin zu benachrichtigen. Einträge werden
+            nach 6 Monaten gelöscht.
+          </p>
+          <p>Rechtsgrundlage jeweils: Art. 6 Abs. 1 lit. b DSGVO.</p>
+        </Section>
+
+        <Section title="7. Fotos (Cloudinary)">
+          <p>
+            Referenzbilder, die Sie bei einer Buchung hochladen, sowie die Fotos auf dieser Website
+            (Galerie, Team, Produkte) speichern wir bei Cloudinary Inc., 3400 Central Expressway,
+            Suite 110, Santa Clara, CA 95051, USA. Ihr Browser lädt diese Bilder
+            direkt von Cloudinary; dabei wird Ihre IP-Adresse an Cloudinary übermittelt.
+          </p>
+          <p>
+            Referenzbilder werden vor dem Hochladen in Ihrem Browser verkleinert; dabei werden alle
+            Metadaten (z. B. GPS-Standort, Kameradaten) entfernt. Sie liegen in einem nur Ihrem Konto
+            zugeordneten Ordner und sind nur für Sie und den Salon bestimmt. Sie werden mit dem Termin
+            gelöscht, sofort bei Löschung Ihres Kontos, und — falls Sie die Buchung nicht
+            abschließen — nach 7 Tagen.
+          </p>
+          <p>
+            Rechtsgrundlage: Art. 6 Abs. 1 lit. b DSGVO (Referenzbilder) bzw. lit. f DSGVO
+            (Darstellung unseres Salons). Mit Cloudinary besteht ein Vertrag zur Auftragsverarbeitung.
+          </p>
+        </Section>
+
+        <Section title="8. Interne Notizen des Salons">
+          <p>
+            Das Salon-Team kann zu Ihrem Kundenkonto interne Notizen anlegen (z. B. bevorzugte
+            Schnittlänge), um Sie beim nächsten Besuch besser bedienen zu können. Diese Notizen sind
+            nicht öffentlich, aber Bestandteil jeder Datenauskunft. Gesundheitsdaten werden darin nicht
+            erfasst. Rechtsgrundlage: Art. 6 Abs. 1 lit. f DSGVO. Löschung 3 Jahre nach der letzten
+            Änderung oder mit Ihrem Konto.
+          </p>
+        </Section>
+
+        <Section title="9. Speicherung auf Ihrem Gerät (§ 25 TDDDG)">
+          <p>
+            Wir verwenden keine Cookies zu Analyse-, Tracking- oder Werbezwecken. Wenn Sie sich
+            anmelden, speichert Firebase Authentication Ihre Anmeldesitzung im Speicher Ihres Browsers
+            (IndexedDB), damit Sie angemeldet bleiben. Das ist für den von Ihnen gewünschten Dienst
+            unbedingt erforderlich (§ 25 Abs. 2 Nr. 2 TDDDG) und erfordert keine Einwilligung. Beim
+            Abmelden wird die Sitzung entfernt.
+          </p>
+        </Section>
+
+        <Section title="10. Empfänger und Übermittlung in Drittländer">
+          <Table
+            head={["Empfänger", "Zweck", "Ort der Verarbeitung"]}
+            rows={[
+              ["Google Ireland Ltd. (Firebase)", "Anmeldung, Datenbank", "Datenbank: Frankfurt; Anmeldung: EU/USA"],
+              ["Vercel Inc.", "Hosting, Server-Funktionen", "Server-Funktionen: Frankfurt; Auslieferung: weltweit"],
+              ["Cloudinary Inc.", "Speicherung von Fotos", "USA"],
+              [LEGAL.emailProvider.split(",")[0], "Versand von E-Mails", "EU/USA"],
+            ]}
+          />
+          <p>
+            Alle Empfänger sind als Auftragsverarbeiter vertraglich gebunden (Art. 28 DSGVO). Soweit
+            Daten in die USA übermittelt werden, erfolgt dies auf Grundlage des
+            Angemessenheitsbeschlusses der EU-Kommission zum EU-US Data Privacy Framework (für
+            zertifizierte Anbieter) bzw. der EU-Standardvertragsklauseln (Art. 46 Abs. 2 lit. c DSGVO).
+          </p>
+          <p>
+            Zur Übersetzung der Website-Texte nutzen wir DeepL (DeepL SE, Köln). Dabei werden nur
+            Website-Texte übermittelt, keine personenbezogenen Daten.
+          </p>
+          <p>
+            Links zu Instagram, TikTok, Facebook und Google Maps sind einfache Verweise. Erst wenn Sie
+            darauf klicken, werden Sie zum jeweiligen Anbieter weitergeleitet; vorher werden keine
+            Daten übertragen.
+          </p>
+        </Section>
+
+        <Section title="11. Speicherdauer im Überblick">
+          <Table
+            head={["Daten", "Löschung"]}
+            rows={[
+              ["Kundenkonto", "Bei Kontolöschung (sofort)"],
+              ["Termine inkl. Referenzbilder", "3 Jahre nach dem Termindatum oder bei Kontolöschung"],
+              ["Nicht verwendete Referenzbilder", "Nach 7 Tagen"],
+              ["Benachrichtigungen im Profil", "Nach 30 Tagen"],
+              ["Warteliste", "Nach 6 Monaten"],
+              ["Interne Notizen", "3 Jahre nach letzter Änderung oder bei Kontolöschung"],
+              ["Code zur Passwortänderung", "Nach 10 Minuten ungültig, gelöscht spätestens am Folgetag"],
+              ["Schutz vor Missbrauch (pseudonymisierte IP-Zähler)", "Nach Ablauf des Zeitfensters, spätestens am Folgetag"],
+              ["Server- und Sicherheitslogs", "Kurzfristig, automatisch durch Vercel"],
+            ]}
+          />
+          <p>Die Löschung erfolgt automatisch durch einen täglichen Bereinigungsjob.</p>
+        </Section>
+
+        <Section title="12. Pflicht zur Bereitstellung, automatisierte Entscheidungen">
+          <p>
+            Für Kundenkonto und Buchung sind Name, E-Mail-Adresse und die Termindaten erforderlich;
+            ohne sie können wir keine Online-Buchung anbieten. Telefonnummer, Notizen und
+            Referenzbild sind freiwillig. Sie können Termine auch telefonisch oder vor Ort vereinbaren.
+          </p>
+          <p>Eine automatisierte Entscheidungsfindung einschließlich Profiling (Art. 22 DSGVO) findet nicht statt.</p>
+        </Section>
+
+        <Section title="13. Ihre Rechte">
           <ul className="list-disc list-inside space-y-1">
-            <li><strong>Google Cloud / Firebase</strong> (Auth, Firestore, Analytics) — EU (europe-west1/3), AVV ✅, SCC ✅</li>
-            <li><strong>Google (Gmail/Workspace)</strong> (Transaktions-E-Mails) — EU/USA, AVV ✅, SCC ✅</li>
-            <li><strong>DeepL SE</strong> (Übersetzung) — Deutschland, EU, AVV ✅, DSGVO direkt</li>
-            <li><strong>Cloudinary Ltd.</strong> (Bildspeicherung: Referenzbilder, Website-Fotos) — Israel/USA, AVV (DPA), SCC</li>
-            <li><strong>Vercel</strong> (Hosting) — USA mit EU Edge, AVV ✅, SCC ✅</li>
+            <li><strong>Auskunft</strong> (Art. 15) und <strong>Datenübertragbarkeit</strong> (Art. 20): im Profil unter „Meine Daten herunterladen“ — enthält alle zu Ihnen gespeicherten Daten inkl. interner Notizen und Fotos — oder per E-Mail.</li>
+            <li><strong>Berichtigung</strong> (Art. 16): im Profil unter „Einstellungen“ oder per E-Mail.</li>
+            <li><strong>Löschung</strong> (Art. 17): im Profil unter „Konto löschen“ oder per E-Mail.</li>
+            <li><strong>Einschränkung der Verarbeitung</strong> (Art. 18): per E-Mail.</li>
           </ul>
-          <p className="mt-2 text-sm">
-            Für USA-Übermittlungen: EU-Standardvertragsklauseln (SCC 2021/914) + ergänzende Maßnahmen.
-            DPF-Zertifizierung geprüft.
+          <div className="border border-gold-500/40 p-4 mt-4">
+            <p className="font-medium text-white mb-2">Widerspruchsrecht (Art. 21 DSGVO)</p>
+            <p>
+              Soweit wir Daten auf Grundlage von Art. 6 Abs. 1 lit. f DSGVO verarbeiten, können Sie
+              aus Gründen, die sich aus Ihrer besonderen Situation ergeben, jederzeit widersprechen.
+              Wir verarbeiten die Daten dann nicht mehr, es sei denn, wir können zwingende
+              schutzwürdige Gründe nachweisen. Ein formloser Hinweis an {LEGAL.email} genügt.
+            </p>
+          </div>
+          <p className="mt-4">
+            <strong>Beschwerderecht:</strong> Sie können sich bei einer Datenschutz-Aufsichtsbehörde
+            beschweren, z. B. beim Bayerischen Landesamt für Datenschutzaufsicht (BayLDA),
+            Promenade 18, 91522 Ansbach, www.lda.bayern.de.
           </p>
         </Section>
 
-        <Section title="9. Ihre Rechte (Art. 15–22 DSGVO)">
-          <table className="w-full text-sm border-collapse mb-4">
-            <thead>
-              <tr className="border-b border-zinc-700">
-                <th className="text-left p-2">Recht</th>
-                <th className="text-left p-2">Beschreibung</th>
-                <th className="text-left p-2">Ausübung</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr className="border-b border-zinc-800"><td className="p-2">Art. 15 – Auskunft</td><td className="p-2">Bestätigung & Kopie der Daten</td><td className="p-2">Profil → &quot;Daten exportieren&quot; oder E-Mail</td></tr>
-              <tr className="border-b border-zinc-800"><td className="p-2">Art. 16 – Berichtigung</td><td className="p-2">Korrektur unrichtiger Daten</td><td className="p-2">Profil → Einstellungen bearbeiten</td></tr>
-              <tr className="border-b border-zinc-800"><td className="p-2">Art. 17 – Löschung</td><td className="p-2">&apos;Recht auf Vergessenwerden&apos; (vorbehaltlich Aufbewahrungspflichten)</td><td className="p-2">Profil → &quot;Konto löschen&quot; oder E-Mail</td></tr>
-              <tr className="border-b border-zinc-800"><td className="p-2">Art. 18 – Einschränkung</td><td className="p-2">Verarbeitung beschränken</td><td className="p-2">E-Mail an datenschutz@dhurdur.de</td></tr>
-              <tr className="border-b border-zinc-800"><td className="p-2">Art. 20 – Datenübertragbarkeit</td><td className="p-2">Strukturierter, maschinenlesbarer Export</td><td className="p-2">Profil → &quot;Daten exportieren&quot; (JSON)</td></tr>
-              <tr className="border-b border-zinc-800"><td className="p-2">Art. 21 – Widerspruch</td><td className="p-2">Gegen Verarbeitung aus berechtigtem Interesse</td><td className="p-2">E-Mail oder Cookie-Banner (Analytics)</td></tr>
-              <tr className="border-b border-zinc-800"><td className="p-2">Art. 7 Abs. 3 – Widerruf</td><td className="p-2">Einwilligung jederzeit widerrufen</td><td className="p-2">Cookie-Banner oder E-Mail</td></tr>
-            </tbody>
-          </table>
-          <p className="mt-2">
-            Beschwerderecht: Bayerisches Landesamt für Datenschutzaufsicht (BayLDA),
-            Promenade 18, 91522 Ansbach, https://www.lda.bayern.de
-          </p>
-        </Section>
-
-        <Section title="10. Datensicherheit (Art. 32 DSGVO)">
-          <ul className="list-disc list-inside space-y-1">
-            <li>Transportverschlüsselung: TLS 1.2+ (HTTPS, HSTS)</li>
-            <li>Speicherverschlüsselung: Firebase/Firestore AES-256 at rest</li>
-            <li>Zugriffskontrolle: Rollenbasiert (Kunde/Admin) über Firestore-Sicherheitsregeln; Admin-Zugang nur mit verifizierter E-Mail-Adresse</li>
-            <li>Passwortsicherheit: gehashte Speicherung (Firebase Authentication), mind. 8 Zeichen mit Groß- und Kleinbuchstaben, Zahl und Sonderzeichen; Passwortänderung nur mit E-Mail-Bestätigungscode</li>
-            <li>Rate Limiting: API-Routen mit Eingabevalidierung (Zod) und serverseitigem Rate Limiting</li>
-            <li>Sicherheits-Headers: CSP, HSTS, X-Frame-Options, Referrer-Policy, Permissions-Policy</li>
-            <li>Audit-Logging: Protokollierung sicherheitsrelevanter Server-Aktionen (E-Mail-Versand, Passwortänderung, Kontolöschung)</li>
-            <li>Notfallplan: Incident-Response-Prozess (72h-Meldepflicht Art. 33 DSGVO)</li>
-            <li>EXIF-Entfernung bei Bild-Uploads</li>
-          </ul>
-        </Section>
-
-        <Section title="11. Speicherdauer & Löschung">
-          <table className="w-full text-sm border-collapse mb-4">
-            <thead>
-              <tr className="border-b border-zinc-700">
-                <th className="text-left p-2">Datenkategorie</th>
-                <th className="text-left p-2">Regelfrist</th>
-                <th className="text-left p-2">Ausnahme</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr className="border-b border-zinc-800"><td className="p-2">Buchungsdaten</td><td className="p-2">3 Jahre nach Terminende</td><td className="p-2">Steuerrechtliche Aufbewahrung (§ 147 AO)</td></tr>
-              <tr className="border-b border-zinc-800"><td className="p-2">Kundenkonto</td><td className="p-2">Bis Widerruf + 30 Tage</td><td className="p-2">Rechtliche Verpflichtungen</td></tr>
-              <tr className="border-b border-zinc-800"><td className="p-2">Kommunikationslogs</td><td className="p-2">1 Jahr</td><td className="p-2">Beweissicherung</td></tr>
-              <tr className="border-b border-zinc-800"><td className="p-2">Analytics-Daten</td><td className="p-2">14 Monate</td><td className="p-2">GA4 Standard</td></tr>
-              <tr className="border-b border-zinc-800"><td className="p-2">Sicherheitslogs</td><td className="p-2">1 Jahr</td><td className="p-2">Angriffserkennung</td></tr>
-              <tr className="border-b border-zinc-800"><td className="p-2">Referenzbilder</td><td className="p-2">Mit Termin (3 Jahre)</td><td className="p-2">Vertrag</td></tr>
-              <tr className="border-b border-zinc-800"><td className="p-2">Kundennotizen (Admin)</td><td className="p-2">3 Jahre (mit Termin)</td><td className="p-2">Vertrag</td></tr>
-              <tr className="border-b border-zinc-800"><td className="p-2">Backups</td><td className="p-2">30 Tage (rolling)</td><td className="p-2">Disaster Recovery</td></tr>
-            </tbody>
-          </table>
-          <p className="text-sm">
-            Automatische Löschung durch einen täglichen Bereinigungsjob: Benachrichtigungen (30 Tage), Termine inkl. Referenzbilder (3 Jahre),
-            Warteliste (6 Monate), Einwilligungsnachweise (3 Jahre).
-          </p>
-        </Section>
-
-        <Section title="12. Kontakt & Datenschutzbeauftragter">
-          <p><strong>Verantwortlicher:</strong></p>
-          <p>Dhurdur</p>
-          <p>Inh. Oliver Hayes</p>
-          <p>Obere Str. 30, 97421 Schweinfurt</p>
-          <p>E-Mail: datenschutz@dhurdur.de</p>
-          <p>Telefon: 01523 2163823</p>
-<p className="mt-2"><strong>Datenschutzbeauftragter:</strong> Nicht verpflichtend bestellt (&lt; 20 Personen). Ansprechpartner: Inhaber.</p>        </Section>
-
-        <Section title="13. Änderungen">
+        <Section title="14. Datensicherheit">
           <p>
-            Wir behalten uns vor, diese Erklärung anzupassen. Die aktuelle Version finden Sie auf dieser Seite.
-            Bei wesentlichen Änderungen informieren wir per E-Mail oder Website-Hinweis.
+            Verschlüsselte Übertragung (HTTPS/TLS, HSTS), Verschlüsselung der gespeicherten Daten,
+            rollenbasierte Zugriffsregeln (Kunden sehen nur ihre eigenen Daten), Passwortänderung nur
+            mit E-Mail-Bestätigungscode, Schutz vor Missbrauch durch Anfragebegrenzung sowie
+            Sicherheits-Header (u. a. Content-Security-Policy).
           </p>
         </Section>
 
-        <Section title="Salvatorische Klausel">
-          <p>Sollten einzelne Bestimmungen unwirksam sein, bleibt die Wirksamkeit der übrigen unberührt.</p>
+        <Section title="15. Änderungen">
+          <p>
+            Wir passen diese Datenschutzerklärung an, wenn sich die Website oder die Rechtslage
+            ändert. Es gilt die jeweils hier veröffentlichte Fassung.
+          </p>
         </Section>
-
-        <p className="text-xs text-zinc-500 mt-10 text-center">
-          *Diese Datenschutzerklärung wurde unter Berücksichtigung der DSGVO, BDSG, TTDSG und DSK-Orientierungshilfen erstellt. Sie ersetzt keine rechtliche Beratung.*
-        </p>
       </div>
     </main>
   );

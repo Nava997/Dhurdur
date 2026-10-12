@@ -156,6 +156,12 @@ test('customer can accept or decline a salon proposal', async () => {
 test('customer can decline a salon proposal', async () => {
   await assertSucceeds(updateDoc(doc(alice(), 'appointments/p1'), { status: 'cancelled' }));
 });
+test('customer can cancel their own open booking, but only the status', async () => {
+  await assertFails(updateDoc(doc(alice(), 'appointments/a1'), { status: 'cancelled', time: '15:30' }));
+  await assertSucceeds(updateDoc(doc(alice(), 'appointments/a1'), { status: 'cancelled' }));
+  await assertFails(updateDoc(doc(alice(), 'appointments/a1'), { status: 'pending' }));
+  await assertFails(updateDoc(doc(bob(), 'appointments/p1'), { status: 'cancelled' }));
+});
 test("customer cannot touch someone else's booking or delete bookings", async () => {
   await assertFails(updateDoc(doc(bob(), 'appointments/a1'), { referenceImage: 'x' }));
   await assertFails(deleteDoc(doc(alice(), 'appointments/a1')));

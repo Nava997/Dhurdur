@@ -13,7 +13,10 @@ const countryCodes = [
 ];
 
 export function ProfileView() {
-  const { t, currentUser, appointments, addNotification, requestPasswordOtp, updateUserPassword, updateAppointmentStatus } = useApp();
+  const { t, currentUser, appointments, addNotification, requestPasswordOtp, updateUserPassword, updateAppointmentStatus, cancelOwnAppointment } = useApp();
+  const confirmCancel = (id: string) => {
+    if (window.confirm(t.profile?.cancelConfirm || "Diesen Termin wirklich stornieren?")) cancelOwnAppointment(id);
+  };
   const [activeTab, setActiveTab] = useState<'overview' | 'settings'>('overview');
 
   const [editName, setEditName] = useState('');
@@ -288,13 +291,18 @@ export function ProfileView() {
                           <p className="text-white text-sm mb-3">{a.proposedDate} um {a.proposedTime} Uhr</p>
                           <div className="flex gap-2">
                             <button onClick={() => updateAppointmentStatus(a.id, 'confirmed', true, undefined, a.proposedDate, a.proposedTime)} className="bg-blue-600 hover:bg-blue-500 text-white px-3 py-1.5 text-xs font-bold uppercase ">{t.profile?.acceptTime || "Zeit Akzeptieren"}</button>
-                            <button onClick={() => updateAppointmentStatus(a.id, 'cancelled', false)} className="border border-red-500/50 text-red-400 hover:bg-red-500/10 px-3 py-1.5 text-xs font-bold uppercase ">{t.profile?.cancel || "Stornieren"}</button>
+                            <button onClick={() => confirmCancel(a.id)} className="border border-red-500/50 text-red-400 hover:bg-red-500/10 px-3 py-1.5 text-xs font-bold uppercase ">{t.profile?.declineProposal || "Ablehnen"}</button>
                           </div>
                         </div>
-                      ) : a.status === 'confirmed' ? (
-                        <span className="text-[10px] uppercase bg-green-600/20 text-green-400 border border-green-600 px-3 py-1 ">{t.admin?.dash?.confirmedSuffix || "Bestätigt"}</span>
                       ) : (
-                        <span className="text-[10px] uppercase bg-yellow-600/20 text-yellow-400 border border-yellow-600 px-3 py-1 ">{t.profile?.pending || "Ausstehend"}</span>
+                        <div className="flex items-center justify-between gap-3">
+                          {a.status === 'confirmed' ? (
+                            <span className="text-[10px] uppercase bg-green-600/20 text-green-400 border border-green-600 px-3 py-1 ">{t.admin?.dash?.confirmedSuffix || "Bestätigt"}</span>
+                          ) : (
+                            <span className="text-[10px] uppercase bg-yellow-600/20 text-yellow-400 border border-yellow-600 px-3 py-1 ">{t.profile?.pending || "Ausstehend"}</span>
+                          )}
+                          <button onClick={() => confirmCancel(a.id)} className="text-xs text-zinc-500 hover:text-red-400 transition-colors">{t.profile?.cancel || "Stornieren"}</button>
+                        </div>
                       )}
                     </div>
                   );

@@ -1,6 +1,6 @@
 import 'server-only';
 import { NextRequest, NextResponse } from 'next/server';
-import { adminAuth, adminDb, getAdminAuth } from '@/lib/firebaseAdmin';
+import { adminAuth, adminDb, getAdminAuth, isAdminToken } from '@/lib/firebaseAdmin';
 import { createAuditLog, logAudit } from '@/lib/validation';
 import { rateLimit } from '@/lib/rateLimit';
 import { deleteUserImages } from '@/lib/cloudinary';
@@ -41,9 +41,22 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'requires-recent-login' }, { status: 403 });
   }
 
-  const uid = decoded.uid;
-  if (!(await rateLimit('account-delete', uid, 3, 10 * 60 * 1000))) {
+  if (!(await rateLimit('account-delete', decoded.uid, 3, 10 * 60 * 1000))) {
     return NextResponse.json({ error: 'Too many requests' }, { status: 429 });
+  }
+
+  // Admins may erase a customer's account on request (e.g. by email). Admin
+  // accounts can't be removed this way.
+  const body = await req.json().catch(() => ({}));
+  const uid: string = typeof body?.uid === 'string' && body.uid ? body.uid : decoded.uid;
+  if (uid !== decoded.uid) {
+    if (!(await isAdminToken(decoded))) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+    const target = await adminDb.collection('users').doc(uid).get();
+    if (target.data()?.role === 'admin') {
+      return NextResponse.json({ error: 'Cannot delete an admin account' }, { status: 400 });
+    }
   }
   try {
     const appointments = await deleteQuery('appointments', uid);
@@ -60,10 +73,10 @@ export async function POST(req: NextRequest) {
 
     await getAdminAuth().deleteUser(uid);
 
-    logAudit(createAuditLog(req, uid, undefined, 'account_delete', uid, 'user', true, undefined, { appointments, alerts, waitlist }));
+    logAudit(createAuditLog(req, decoded.uid, uid === decoded.uid ? 'user' : 'admin', 'account_delete', uid, 'user', true, undefined, { appointments, alerts, waitlist }));
     return NextResponse.json({ success: true });
   } catch (err) {
-    logAudit(createAuditLog(req, uid, undefined, 'account_delete', uid, 'user', false, err instanceof Error ? err.message : 'failed'));
+    logAudit(createAuditLog(req, decoded.uid, uid === decoded.uid ? 'user' : 'admin', 'account_delete', uid, 'user', false, err instanceof Error ? err.message : 'failed'));
     return NextResponse.json({ error: 'Deletion failed' }, { status: 500 });
   }
 }

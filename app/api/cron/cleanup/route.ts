@@ -1,15 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { timingSafeEqual } from 'crypto';
-import { deleteImages, publicIdFromUrl } from '@/lib/cloudinary';
+import { deleteImages, listReferenceImages, publicIdFromUrl } from '@/lib/cloudinary';
 import { adminDb } from '@/lib/firebaseAdmin';
 
 // GDPR storage-limitation cleanup (Art. 5(1)(e)): purges old appointments,
-// waitlist entries, alerts, client notes, consent records and reference images
+// waitlist entries, alerts, client notes, retired consent records and reference images
 // past the retention windows stated in the privacy policy (app/privacy).
 // Triggered by Vercel Cron (see vercel.json) or manually with the CRON_SECRET bearer token.
 const APPOINTMENT_RETENTION_MONTHS = Number(
   process.env.APPOINTMENT_RETENTION_MONTHS ?? 36
 );
+const ORPHAN_IMAGE_GRACE_DAYS = 7;
 const ALERT_RETENTION_DAYS = Number(
   process.env.ALERT_RETENTION_DAYS ?? 30
 );
@@ -18,9 +19,6 @@ const WAITLIST_RETENTION_MONTHS = Number(
 );
 const CLIENT_NOTES_RETENTION_MONTHS = Number(
   process.env.CLIENT_NOTES_RETENTION_MONTHS ?? 36
-);
-const CONSENT_LOG_RETENTION_MONTHS = Number(
-  process.env.CONSENT_LOG_RETENTION_MONTHS ?? 36
 );
 
 // Firestore batches are capped at 500 writes, so commit deletes in chunks.
@@ -57,9 +55,6 @@ export async function GET(req: NextRequest) {
 
   const clientNotesCutoff = new Date();
   clientNotesCutoff.setMonth(clientNotesCutoff.getMonth() - CLIENT_NOTES_RETENTION_MONTHS);
-
-  const consentCutoff = new Date();
-  consentCutoff.setMonth(consentCutoff.getMonth() - CONSENT_LOG_RETENTION_MONTHS);
 
   // Delete old appointments (cancelled/confirmed older than retention)
   // Status is filtered in code: a range + `in` query on two fields would need
@@ -101,10 +96,28 @@ export async function GET(req: NextRequest) {
     .get();
   const deletedClientNotes = await deleteDocs(clientNotesSnap.docs);
 
-  // Old cookie-consent records (loggedAt is a server-set ISO timestamp).
-  const deletedConsentLogs = await deleteDocs(
-    (await adminDb.collection('consentLogs').where('loggedAt', '<', consentCutoff.toISOString()).get()).docs
-  );
+  // The cookie banner and its consent log were retired (the site sets no
+  // consent-requiring storage), so any leftover records are purged entirely.
+  const deletedConsentLogs = await deleteDocs((await adminDb.collection('consentLogs').get()).docs);
+
+  // Reference photos uploaded but never attached to a booking (customer
+  // abandoned the form, or swapped the photo) — remove after a grace period.
+  let deletedOrphanImages = 0;
+  try {
+    const orphanCutoff = Date.now() - ORPHAN_IMAGE_GRACE_DAYS * 24 * 60 * 60 * 1000;
+    const inUse = new Set(
+      (await adminDb.collection('appointments').select('referenceImage').get()).docs
+        .map(d => publicIdFromUrl(d.data().referenceImage))
+        .filter((id): id is string => id !== null)
+    );
+    const orphans = (await listReferenceImages())
+      .filter(img => Date.parse(img.createdAt) < orphanCutoff && !inUse.has(img.publicId))
+      .map(img => img.publicId);
+    await deleteImages(orphans);
+    deletedOrphanImages = orphans.length;
+  } catch (err) {
+    console.error('[cron-cleanup] orphan image cleanup failed:', err);
+  }
 
   // Expired rate-limit counters and password codes (housekeeping, not PII-bearing).
   const now = Date.now();
@@ -124,5 +137,6 @@ export async function GET(req: NextRequest) {
     deletedWaitlist,
     deletedClientNotes,
     deletedConsentLogs,
+    deletedOrphanImages,
   });
 }

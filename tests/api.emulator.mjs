@@ -1,10 +1,12 @@
 // End-to-end API security tests against a local dev server wired to the
-// Firebase emulators. Nothing here touches the live project.
+// Firebase emulators. Nothing here touches the live project — keep
+// CLOUDINARY_API_SECRET empty: the cron's orphan-photo cleanup compares the
+// real Cloudinary folder against the (empty) emulator database.
 //
 //   1. firebase emulators:start --project avdar-salon --only auth,firestore,storage
 //   2. NEXT_PUBLIC_USE_FIREBASE_EMULATORS=true FIRESTORE_EMULATOR_HOST=127.0.0.1:8080 \
 //      FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:9099 FIREBASE_STORAGE_EMULATOR_HOST=127.0.0.1:9199 \
-//      EMAIL_USER= EMAIL_PASS= DEEPL_API_KEY= \
+//      EMAIL_USER= EMAIL_PASS= DEEPL_API_KEY= CLOUDINARY_API_SECRET= \
 //      CRON_SECRET=test-cron-secret-123 npx next dev -p 3100
 //   3. node --test tests/api.emulator.mjs
 import { test, before } from 'node:test';
@@ -88,8 +90,9 @@ before(async () => {
   await db.doc('clientNotes/alice').set({ notes: 'note', updatedAt: Date.now() });
   const DAY = 24 * 60 * 60 * 1000;
   await db.doc('alerts/al-old').set({ userId: 'alice', message: 'old', isRead: true, link: 'profile', createdAt: Date.now() - 31 * DAY });
-  await db.doc('consentLogs/c-old').set({ necessary: true, loggedAt: new Date(Date.now() - 4 * 365 * DAY).toISOString() });
-  await db.doc('consentLogs/c-new').set({ necessary: true, loggedAt: new Date().toISOString() });
+  // Leftovers from the retired cookie banner — the cron purges all of them.
+  await db.doc('consentLogs/c-old').set({ necessary: true, userAgent: 'x', loggedAt: new Date(Date.now() - 4 * 365 * DAY).toISOString() });
+  await db.doc('consentLogs/c-new').set({ necessary: true, userAgent: 'x', loggedAt: new Date().toISOString() });
 });
 
 // ---------------- Public availability ----------------
@@ -137,19 +140,9 @@ test('translate-ui: unsupported language rejected', async () => {
   assert.equal((await api('/api/translate-ui', { method: 'POST', body: { targetLang: 'xx' } })).status, 400);
 });
 
-// ---------------- Consent log ----------------
-test('consent-log: stores only capped, typed fields', async () => {
-  const r = await api('/api/consent-log', { method: 'POST', body: { analytics: 'yes', version: 'v'.repeat(500), userAgent: 'u'.repeat(5000), evil: { nested: 'x'.repeat(1000) }, necessary: false } });
-  assert.equal(r.status, 200);
-  const logs = await db.collection('consentLogs').get();
-  const d = logs.docs.at(-1).data();
-  assert.equal(d.analytics, false);
-  assert.equal(d.necessary, true);
-  assert.ok(d.consentVersion.length <= 32 && d.userAgent.length <= 300);
-  assert.equal(d.evil, undefined);
-});
-test('consent-log: junk body rejected', async () => {
-  assert.equal((await api('/api/consent-log', { method: 'POST', body: 'not json' })).status, 400);
+// ---------------- Consent log (retired) ----------------
+test('consent-log endpoint no longer exists', async () => {
+  assert.equal((await api('/api/consent-log', { method: 'POST', body: { analytics: true } })).status, 404);
 });
 
 // ---------------- Cron ----------------
@@ -164,8 +157,7 @@ test('cron cleanup: with the secret deletes only expired data', async () => {
   assert.equal((await db.doc('appointments/a-bob').get()).exists, true, 'future appointment kept');
   assert.equal((await db.doc('alerts/al-old').get()).exists, false, 'alert older than 30 days purged');
   assert.equal((await db.doc('alerts/al-alice').get()).exists, true, 'recent alert kept');
-  assert.equal((await db.doc('consentLogs/c-old').get()).exists, false, 'consent log older than 3 years purged');
-  assert.equal((await db.doc('consentLogs/c-new').get()).exists, true, 'recent consent log kept');
+  assert.equal((await db.collection('consentLogs').get()).size, 0, 'retired consent logs purged');
 });
 
 // ---------------- Cloudinary uploads ----------------
@@ -234,6 +226,45 @@ test('password: code locks after 5 wrong guesses', async () => {
 test('account delete: needs login', async () => {
   assert.equal((await api('/api/account/delete', { method: 'POST' })).status, 401);
 });
+test('export: needs login', async () => {
+  assert.equal((await api('/api/account/export', { method: 'POST', body: {} })).status, 401);
+});
+test('export: customer gets all their own data, including staff notes', async () => {
+  const r = await api('/api/account/export', { method: 'POST', token: T.alice, body: {} });
+  assert.equal(r.status, 200, JSON.stringify(r.json));
+  assert.equal(r.json.profile.id, 'alice');
+  assert.equal(r.json.account.email, 'alice@example.com');
+  assert.equal(r.json.staffNotes.notes, 'note');
+  assert.ok(r.json.appointments.length >= 1 && r.json.appointments.every(a => a.userId === 'alice'));
+  assert.ok(r.json.information.purposes);
+});
+test("export: customer cannot export someone else's data", async () => {
+  // Fresh user: the password tests above revoke bob's session.
+  const dave = await makeUser('dave', 'dave@example.com');
+  assert.equal((await api('/api/account/export', { method: 'POST', token: dave, body: { uid: 'alice' } })).status, 403);
+});
+test('export: admin can export a customer (request by email)', async () => {
+  const r = await api('/api/account/export', { method: 'POST', token: T.staff, body: { uid: 'alice' } });
+  assert.equal(r.status, 200);
+  assert.equal(r.json.profile.id, 'alice');
+});
+test("account delete: customer cannot delete someone else's account", async () => {
+  await makeUser('carol', 'carol@example.com');
+  const dave = await signIn('dave@example.com', 'Passw0rd!x');
+  assert.equal((await api('/api/account/delete', { method: 'POST', token: dave, body: { uid: 'carol' } })).status, 403);
+  assert.equal((await db.doc('users/carol').get()).exists, true);
+});
+test('account delete: admin can erase a customer, but not another admin', async () => {
+  const staff = await signIn('staff@example.com', 'Passw0rd!x');
+  await db.doc('appointments/a-carol').set({ userId: 'carol', status: 'pending', date: '2030-01-01', time: '10:00' });
+  const r = await api('/api/account/delete', { method: 'POST', token: staff, body: { uid: 'carol' } });
+  assert.equal(r.status, 200, JSON.stringify(r.json));
+  assert.equal((await db.doc('users/carol').get()).exists, false);
+  assert.equal((await db.doc('appointments/a-carol').get()).exists, false);
+  await assert.rejects(auth.getUser('carol'));
+  await makeUser('staff2', 'staff2@example.com', { role: 'admin' });
+  assert.equal((await api('/api/account/delete', { method: 'POST', token: staff, body: { uid: 'staff2' } })).status, 400);
+});
 test("account delete: removes all of the user's data and nobody else's", async () => {
   const token = await signIn('alice@example.com', 'Passw0rd!x');
   const r = await api('/api/account/delete', { method: 'POST', token });
@@ -252,14 +283,14 @@ test("account delete: removes all of the user's data and nobody else's", async (
 test('rate limit: hammering an endpoint from one IP gets 429', async () => {
   const ip = freshIp();
   const statuses = [];
-  for (let i = 0; i < 15; i++) statuses.push((await api('/api/consent-log', { method: 'POST', ip, body: { analytics: false } })).status);
+  for (let i = 0; i < 15; i++) statuses.push((await api('/api/email', { method: 'POST', ip, body: {} })).status);
   assert.ok(statuses.includes(429), statuses.join(','));
 });
 test('rate limit: changing User-Agent does not reset the limit', async () => {
   const ip = freshIp();
   const statuses = [];
   for (let i = 0; i < 15; i++) {
-    statuses.push((await api('/api/consent-log', { method: 'POST', ip, headers: { 'user-agent': `bot-${i}` }, body: { analytics: false } })).status);
+    statuses.push((await api('/api/email', { method: 'POST', ip, headers: { 'user-agent': `bot-${i}` }, body: {} })).status);
   }
   assert.ok(statuses.includes(429), statuses.join(','));
 });

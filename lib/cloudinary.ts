@@ -75,3 +75,30 @@ export async function deleteImages(publicIds: string[]): Promise<void> {
 export async function deleteUserImages(uid: string): Promise<void> {
   await adminDelete(`prefix=${encodeURIComponent(`${ROOT}/reference/${uid}/`)}`);
 }
+
+export type StoredImage = { publicId: string; url: string; createdAt: string; bytes: number };
+
+/** Lists every image under a folder prefix (follows Admin API pagination). */
+export async function listImages(prefix: string): Promise<StoredImage[]> {
+  const c = config();
+  if (!c) return [];
+  const out: StoredImage[] = [];
+  let cursor: string | undefined;
+  do {
+    const q = new URLSearchParams({ prefix, max_results: '500', ...(cursor ? { next_cursor: cursor } : {}) });
+    const res = await fetch(`https://api.cloudinary.com/v1_1/${c.cloudName}/resources/image/upload?${q}`, {
+      headers: { Authorization: `Basic ${Buffer.from(`${c.apiKey}:${c.apiSecret}`).toString('base64')}` },
+    });
+    if (!res.ok) throw new Error(`Cloudinary list failed: ${res.status}`);
+    const data = await res.json() as { resources: { public_id: string; secure_url: string; created_at: string; bytes: number }[]; next_cursor?: string };
+    out.push(...data.resources.map(r => ({ publicId: r.public_id, url: r.secure_url, createdAt: r.created_at, bytes: r.bytes })));
+    cursor = data.next_cursor;
+  } while (cursor);
+  return out;
+}
+
+/** A customer's uploaded reference photos (for data export). */
+export const listUserImages = (uid: string) => listImages(`${ROOT}/reference/${uid}/`);
+
+/** All customer reference photos, across users (for retention cleanup). */
+export const listReferenceImages = () => listImages(`${ROOT}/reference/`);

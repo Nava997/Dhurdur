@@ -1,15 +1,16 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { Fragment, useState, useEffect } from 'react';
 import Link from 'next/link';
 import { motion, Variants } from 'framer-motion';
+import { localImage } from '@/lib/localImage';
 import { useApp, type UserProfile, type ServiceItem, type StylistItem } from '@/context/AppContext';
 import { NotificationBell } from '@/components/NotificationBell';
 import { LanguageSelector } from '@/components/LanguageSelector';
 import { ProfileView } from '@/components/ProfileView';
-import { DataExportButton } from '@/components/DataExport';
+import { DataExportButton, downloadDataExport } from '@/components/DataExport';
+import { auth } from '@/lib/firebase';
 import { DeleteAccountButton, AccountDeletionModal } from '@/components/AccountDeletion';
-import { useCookieConsent } from '@/components/CookieConsent';
 import { ImageUploadButton } from '@/components/ImageUploadButton';
 import { deleteSiteImage } from '@/lib/uploadImage';
 
@@ -95,7 +96,7 @@ function AdminDashboard({ onLogout, onPreviewSite }: { onLogout: () => void; onP
     appointments, usersDB, clientNotesDB, stylistsDB, waitlist, generalSettings, currentUser,
     updateAppointmentStatus, addAdminAppointment, addService, deleteService,
     addStylist, deleteStylist, updateStylist, updateGeneralSettings, notifyWaitlist, removeFromWaitlist, updateUserNotes, t, lang,
-    getTranslatedServices, getTranslatedStylists, productsDB, addProduct, deleteProduct
+    getTranslatedServices, getTranslatedStylists, productsDB, addProduct, deleteProduct, addNotification
   } = useApp();
 
   const translatedServices = getTranslatedServices();
@@ -112,6 +113,13 @@ function AdminDashboard({ onLogout, onPreviewSite }: { onLogout: () => void; onP
 
   const [newBooking, setNewBooking] = useState({ name: '', phone: '', service: '', stylist: '', date: todayStr, time: '10:00' });
   const [showBookingForm, setShowBookingForm] = useState(false);
+  // Inline 'propose a new time' form in the appointments table.
+  const [proposing, setProposing] = useState<{ id: string; date: string; time: string } | null>(null);
+  const submitProposal = async () => {
+    if (!proposing?.date || !proposing.time) return;
+    await updateAppointmentStatus(proposing.id, 'proposed', true, undefined, proposing.date, proposing.time);
+    setProposing(null);
+  };
   const submitWalkIn = async () => {
     if (!newBooking.name || !newBooking.service) return;
     const service = translatedServices.find(s => s.name === newBooking.service);
@@ -300,9 +308,15 @@ function AdminDashboard({ onLogout, onPreviewSite }: { onLogout: () => void; onP
                 <tr><td colSpan={6} className="px-6 py-8 text-center text-zinc-600">{t.admin?.dash?.noApptsFound || "No appointments found."}</td></tr>
               )}
               {searched.map((row) => (
-                <tr key={row.id} className="hover:bg-zinc-900/30 transition-colors">
+                <Fragment key={row.id}>
+                <tr className="hover:bg-zinc-900/30 transition-colors">
                   <td className="px-6 py-4 text-zinc-500">{row.id.slice(0, 6)}</td>
-                  <td className="px-6 py-4 text-zinc-300">{row.date} • {row.time}</td>
+                  <td className="px-6 py-4 text-zinc-300">
+                    {row.date} • {row.time}
+                    {row.status === 'proposed' && row.proposedDate && (
+                      <span className="block text-xs text-blue-400 mt-1">→ {row.proposedDate} • {row.proposedTime}</span>
+                    )}
+                  </td>
                   <td className="px-6 py-4">
                     {row.name}
                     {row.referenceImage && (
@@ -321,11 +335,29 @@ function AdminDashboard({ onLogout, onPreviewSite }: { onLogout: () => void; onP
                     {row.status !== 'confirmed' && row.status !== 'cancelled' && (
                       <button onClick={() => updateAppointmentStatus(row.id, 'confirmed', true)} className="text-green-500 hover:text-green-400 transition-colors">{t.admin?.dash?.confirm || "Confirm"}</button>
                     )}
+                    {(row.status === 'pending' || row.status === 'confirmed') && row.userId !== 'walk-in' && row.userId !== 'block' && (
+                      <button onClick={() => setProposing(proposing?.id === row.id ? null : { id: row.id, date: row.date, time: row.time })} className="text-blue-400 hover:text-blue-300 transition-colors">{lang === 'de' ? 'Verschieben' : 'Reschedule'}</button>
+                    )}
                     {row.status !== 'cancelled' && (
                       <button onClick={() => updateAppointmentStatus(row.id, 'cancelled', false)} className="text-red-500 hover:text-red-400 transition-colors">{t.admin?.dash?.cancel || "Cancel"}</button>
                     )}
                   </td>
                 </tr>
+                {proposing?.id === row.id && (
+                  <tr className="bg-zinc-950">
+                    <td colSpan={6} className="px-6 py-4">
+                      <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+                        <span className="text-zinc-400 text-sm">{lang === 'de' ? 'Neuen Termin vorschlagen:' : 'Propose a new time:'}</span>
+                        <input type="date" value={proposing.date} min={todayStr} onChange={e => setProposing({ ...proposing, date: e.target.value })} className="bg-black border border-zinc-800 p-2 text-sm focus:outline-none focus:border-gold-500" />
+                        <input type="time" value={proposing.time} onChange={e => setProposing({ ...proposing, time: e.target.value })} className="bg-black border border-zinc-800 p-2 text-sm focus:outline-none focus:border-gold-500" />
+                        <button onClick={submitProposal} className="gold-shine-btn text-black px-4 py-2 text-xs uppercase tracking-widest">{lang === 'de' ? 'Vorschlag senden' : 'Send proposal'}</button>
+                        <button onClick={() => setProposing(null)} className="border border-zinc-700 px-4 py-2 text-xs uppercase tracking-widest hover:bg-zinc-900 transition-colors">{lang === 'de' ? 'Abbrechen' : 'Cancel'}</button>
+                      </div>
+                      <p className="text-zinc-600 text-xs mt-2">{lang === 'de' ? 'Der Kunde bekommt eine E-Mail und kann den Vorschlag in seinem Profil annehmen oder ablehnen.' : 'The customer gets an email and can accept or decline it in their profile.'}</p>
+                    </td>
+                  </tr>
+                )}
+                </Fragment>
               ))}
             </tbody>
           </table>
@@ -339,6 +371,35 @@ function AdminDashboard({ onLogout, onPreviewSite }: { onLogout: () => void; onP
   const lastVisitFor = (userId: string) => {
     const past = appointments.filter(a => a.userId === userId && a.status === 'confirmed').sort((a, b) => (b.date + b.time).localeCompare(a.date + a.time));
     return past[0]?.date || (t.admin?.dash?.noVisitsYet || 'No visits yet');
+  };
+
+  // GDPR requests that reach the salon by email/phone (Art. 15 / Art. 17).
+  const exportClientData = async (uid: string) => {
+    try {
+      await downloadDataExport(uid);
+    } catch (err) {
+      addNotification(`Export fehlgeschlagen: ${(err as Error).message}`, 'error');
+    }
+  };
+  const deleteClient = async (client: UserProfile) => {
+    const question = lang === 'de'
+      ? `Konto von ${client.name} endgültig löschen? Alle Termine, Notizen und Fotos werden entfernt. Das kann nicht rückgängig gemacht werden.`
+      : `Permanently delete ${client.name}'s account? All bookings, notes and photos are removed. This cannot be undone.`;
+    if (!window.confirm(question)) return;
+    const token = await auth.currentUser?.getIdToken();
+    const res = await fetch('/api/account/delete', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ uid: client.id }),
+    });
+    if (res.ok) {
+      addNotification(lang === 'de' ? 'Konto gelöscht.' : 'Account deleted.', 'success');
+    } else {
+      const { error } = await res.json().catch(() => ({ error: '' }));
+      addNotification(error === 'requires-recent-login'
+        ? (lang === 'de' ? 'Bitte zur Sicherheit ab- und wieder anmelden, dann erneut versuchen.' : 'For security, please sign out and in again, then retry.')
+        : (lang === 'de' ? 'Löschen fehlgeschlagen.' : 'Deletion failed.'), 'error');
+    }
   };
 
   const renderClients = () => (
@@ -367,11 +428,11 @@ function AdminDashboard({ onLogout, onPreviewSite }: { onLogout: () => void; onP
               <div className="flex justify-between text-sm"><span className="text-zinc-500">{t.admin?.dash?.lastVisitLbl || "Last Visit"}:</span> <span>{lastVisitFor(client.id)}</span></div>
             </div>
             <div className="mt-4 pt-4 border-t border-zinc-900 space-y-2">
-              <label className="text-zinc-500 text-[10px] uppercase tracking-widest">{t.admin?.dash?.staffNotesLabel || "Staff Notes (private — never visible to client)"}</label>
+              <label className="text-zinc-500 text-[10px] uppercase tracking-widest">{lang === 'de' ? 'Interne Notizen (nicht öffentlich — aber Teil einer Datenauskunft)' : 'Internal notes (not public — but included in a data access request)'}</label>
               <textarea
                 value={editingClientNotes[client.id] !== undefined ? editingClientNotes[client.id] : (clientNotesDB[client.id] || '')}
                 onChange={(e) => setEditingClientNotes({ ...editingClientNotes, [client.id]: e.target.value })}
-                placeholder={t.admin?.dash?.staffNotesPh || "e.g. preferred fade length, allergies, regular chair..."}
+                placeholder={lang === 'de' ? 'z.B. bevorzugte Fade-Länge, Stammplatz … keine Gesundheitsdaten (Allergien etc.)' : 'e.g. preferred fade length, regular chair … no health data (allergies etc.)'}
                 rows={2}
                 className="w-full bg-black border border-zinc-800 p-2 text-xs text-white focus:outline-none focus:border-zinc-500"
               />
@@ -380,6 +441,14 @@ function AdminDashboard({ onLogout, onPreviewSite }: { onLogout: () => void; onP
                 className="text-xs uppercase tracking-widest text-zinc-400 hover:text-white transition-colors"
               >
                 {t.admin?.dash?.saveNote || "Save Note"}
+              </button>
+            </div>
+            <div className="mt-4 pt-4 border-t border-zinc-900 flex justify-between gap-2">
+              <button onClick={() => exportClientData(client.id)} className="text-[10px] uppercase tracking-widest text-zinc-500 hover:text-white transition-colors">
+                {lang === 'de' ? 'Daten exportieren' : 'Export data'}
+              </button>
+              <button onClick={() => deleteClient(client)} className="text-[10px] uppercase tracking-widest text-zinc-600 hover:text-red-500 transition-colors">
+                {lang === 'de' ? 'Konto löschen' : 'Delete account'}
               </button>
             </div>
           </div>
@@ -726,7 +795,6 @@ function AdminDashboard({ onLogout, onPreviewSite }: { onLogout: () => void; onP
 // ==========================================
 function MainWebsite({ onEnterAdmin }: { onEnterAdmin: () => void }) {
   const { currentUser, isAdminAuth, loginEmail, registerEmail, loginOAuth, resetPassword, logout, servicesDB, stylistsDB, productsDB, generalSettings, t, lang, getTranslatedStylists } = useApp();
-  const { resetConsent } = useCookieConsent();
   const [scrolled, setScrolled] = useState(false);
   // Once the salon uploads stylist photos (admin → Team) they replace the sample team.
   const teamWithPhotos = getTranslatedStylists()
@@ -950,7 +1018,7 @@ function MainWebsite({ onEnterAdmin }: { onEnterAdmin: () => void }) {
         >
           {/* eslint-disable-next-line @next/next/no-img-element -- images come from admin-entered URLs on any host; next/image would need every host allow-listed */}
           <img
-            src="https://images.unsplash.com/photo-1503951914875-452162b0f3f1?q=80&w=3000&auto=format&fit=crop"
+            src={localImage("https://images.unsplash.com/photo-1503951914875-452162b0f3f1?q=80&w=3000&auto=format&fit=crop")}
             alt="Background"
             className="w-full h-full object-cover opacity-50"
           />
@@ -1047,7 +1115,7 @@ function MainWebsite({ onEnterAdmin }: { onEnterAdmin: () => void }) {
         <div className="absolute inset-0 -z-10">
           {/* eslint-disable-next-line @next/next/no-img-element -- images come from admin-entered URLs on any host; next/image would need every host allow-listed */}
           <img
-            src="https://images.unsplash.com/photo-1702865272115-5afdbae975af?q=80&w=2400&auto=format&fit=crop"
+            src={localImage("https://images.unsplash.com/photo-1702865272115-5afdbae975af?q=80&w=2400&auto=format&fit=crop")}
             alt=""
             className="w-full h-full object-cover opacity-20"
           />
@@ -1095,6 +1163,7 @@ function MainWebsite({ onEnterAdmin }: { onEnterAdmin: () => void }) {
             </motion.div>
           ))}
         </div>
+        <p className="text-zinc-600 text-xs mt-6">{lang === 'de' ? 'Gemäß § 19 UStG wird keine Umsatzsteuer berechnet.' : 'No VAT is charged (small business, § 19 UStG).'}</p>
         </div>
       </section>
 
@@ -1124,7 +1193,7 @@ function MainWebsite({ onEnterAdmin }: { onEnterAdmin: () => void }) {
               transition={{ duration: 0.8, type: "spring", bounce: 0.4, delay: idx * 0.1 }}
               className="overflow-hidden"
             >
-              <motion.img whileHover={{ scale: 1.2, rotate: idx % 2 === 0 ? 3 : -3 }} transition={{ duration: 0.8, type: "spring" }} src={src} alt={`Dhurdur ${t.gallery?.title || "Gallery"} ${idx + 1}`} className="w-full h-64 object-cover" />
+              <motion.img whileHover={{ scale: 1.2, rotate: idx % 2 === 0 ? 3 : -3 }} transition={{ duration: 0.8, type: "spring" }} src={localImage(src, 828)} alt={`Dhurdur ${t.gallery?.title || "Gallery"} ${idx + 1}`} className="w-full h-64 object-cover" />
             </motion.div>
           ))}
         </div>
@@ -1161,7 +1230,7 @@ function MainWebsite({ onEnterAdmin }: { onEnterAdmin: () => void }) {
               className="border border-zinc-900 overflow-hidden group"
             >
               <div className="h-96 w-full overflow-hidden">
-                <motion.img whileHover={{ scale: 1.1 }} transition={{ duration: 0.5 }} src={member.img} alt={member.name} className="w-full h-full object-cover grayscale group-hover:grayscale-0 transition-all duration-700" />
+                <motion.img whileHover={{ scale: 1.1 }} transition={{ duration: 0.5 }} src={localImage(member.img, 828)} alt={member.name} className="w-full h-full object-cover grayscale group-hover:grayscale-0 transition-all duration-700" />
               </div>
               <div className="p-6 relative">
                 <motion.div initial={{ width: 0 }} whileInView={{ width: "100%" }} viewport={{ once: false }} transition={{ duration: 1, delay: 0.5 }} className="absolute top-0 left-0 h-1 bg-zinc-800" />
@@ -1221,7 +1290,7 @@ function MainWebsite({ onEnterAdmin }: { onEnterAdmin: () => void }) {
         <div className="absolute inset-0 -z-10">
           {/* eslint-disable-next-line @next/next/no-img-element -- images come from admin-entered URLs on any host; next/image would need every host allow-listed */}
           <img
-            src="https://images.unsplash.com/photo-1621645582931-d1d3e6564943?q=80&w=2400&auto=format&fit=crop"
+            src={localImage("https://images.unsplash.com/photo-1621645582931-d1d3e6564943?q=80&w=2400&auto=format&fit=crop")}
             alt=""
             className="w-full h-full object-cover opacity-15"
           />
@@ -1271,7 +1340,7 @@ function MainWebsite({ onEnterAdmin }: { onEnterAdmin: () => void }) {
         <div className="absolute inset-0 -z-10">
           {/* eslint-disable-next-line @next/next/no-img-element -- images come from admin-entered URLs on any host; next/image would need every host allow-listed */}
           <img
-            src="https://images.unsplash.com/photo-1669568846636-00191bb5481a?q=80&w=2400&auto=format&fit=crop"
+            src={localImage("https://images.unsplash.com/photo-1669568846636-00191bb5481a?q=80&w=2400&auto=format&fit=crop")}
             alt=""
             className="w-full h-full object-cover opacity-15"
           />
@@ -1363,9 +1432,6 @@ function MainWebsite({ onEnterAdmin }: { onEnterAdmin: () => void }) {
           <div className="flex flex-wrap justify-center gap-4 uppercase tracking-widest">
             <Link href="/impressum" className="hover:text-gold-400 transition-colors">Impressum</Link>
             <Link href="/privacy" className="hover:text-gold-400 transition-colors">{lang === 'de' ? 'Datenschutz' : 'Privacy'}</Link>
-            <button onClick={resetConsent} className="uppercase tracking-widest hover:text-gold-400 transition-colors">
-              {lang === 'de' ? 'Cookie-Einstellungen' : 'Cookie Settings'}
-            </button>
           </div>
         </div>
       </footer>
@@ -1416,7 +1482,7 @@ function ClientAuthModal({ onClose, loginEmail, registerEmail, loginOAuth, reset
   resetPassword: (email: string) => Promise<void>;
   currentUser: UserProfile | null;
 }) {
-  const { t } = useApp();
+  const { t, lang } = useApp();
   const [mode, setMode] = useState<'login' | 'register'>('login');
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -1519,6 +1585,12 @@ function ClientAuthModal({ onClose, loginEmail, registerEmail, loginOAuth, reset
           <button type="button" onClick={() => setMode(mode === 'login' ? 'register' : 'login')} className="w-full text-center text-zinc-500 hover:text-white text-xs transition-colors pt-2">
             {mode === 'login' ? (t.auth?.noAccount || "Don't have an account? Register") : (t.auth?.haveAccount || 'Already have an account? Sign in')}
           </button>
+
+          <p className="text-zinc-600 text-[11px] leading-relaxed text-center pt-2">
+            {lang === 'de'
+              ? <>Wir verwenden Ihre Angaben zur Verwaltung Ihres Kontos und Ihrer Termine. Details in der <Link href="/privacy" className="underline hover:text-white">Datenschutzerklärung</Link>.</>
+              : <>We use your details to manage your account and bookings. See our <Link href="/privacy" className="underline hover:text-white">privacy policy</Link>.</>}
+          </p>
         </form>
       </motion.div>
     </motion.div>
@@ -1594,7 +1666,7 @@ function BookingForm({ servicesDB, stylistsDB }: { servicesDB: ServiceItem[]; st
         <div>
           <label className="block text-zinc-400 text-sm mb-4">{t.booking?.time || "Time"}</label>
           <select value={time} onChange={e => setTime(e.target.value)} disabled={!date} className="w-full bg-black border border-zinc-800 p-4 text-white focus:outline-none focus:border-gold-500 disabled:opacity-40">
-            <option value="">{date ? (t.common?.selectTime || 'Select a time') : (t.booking?.pickDateFirst || 'Pick a date first')}</option>
+            <option value="">{date ? (t.common?.selectTime || (lang === 'de' ? 'Uhrzeit wählen' : 'Select a time')) : (t.booking?.pickDateFirst || 'Pick a date first')}</option>
             {slots.map(s => <option key={s.id} value={s.time} disabled={s.isBooked}>{s.time}{s.isBooked ? (lang === 'de' ? ' (belegt)' : ' (booked)') : ''}</option>)}
           </select>
         </div>
@@ -1603,6 +1675,7 @@ function BookingForm({ servicesDB, stylistsDB }: { servicesDB: ServiceItem[]; st
       <div>
         <label className="block text-zinc-400 text-sm mb-4">{t.booking?.requestsLabel || "Special Requests / Notes (Optional)"}</label>
         <textarea value={notes} onChange={e => setNotes(e.target.value)} rows={3} className="w-full bg-black border border-zinc-800 p-4 text-white focus:outline-none focus:border-gold-500" />
+        <p className="text-zinc-600 text-xs mt-2">{lang === 'de' ? 'Bitte keine Gesundheitsangaben (z. B. Allergien, Hauterkrankungen) eintragen — sprechen Sie diese lieber direkt im Salon an.' : 'Please don’t enter health details (e.g. allergies, skin conditions) — mention them in person at the salon instead.'}</p>
       </div>
 
       <div>
@@ -1626,6 +1699,11 @@ function BookingForm({ servicesDB, stylistsDB }: { servicesDB: ServiceItem[]; st
       >
         {t.booking?.confirmBooking || "Confirm Booking"}
       </button>
+      <p className="text-zinc-600 text-xs text-center">
+        {lang === 'de'
+          ? <>Ihre Buchungsdaten werden zur Terminvereinbarung verarbeitet und 3 Jahre nach dem Termin gelöscht. Mehr in der <Link href="/privacy" className="underline hover:text-white">Datenschutzerklärung</Link>.</>
+          : <>Your booking details are used to arrange the appointment and deleted 3 years after it. More in our <Link href="/privacy" className="underline hover:text-white">privacy policy</Link>.</>}
+      </p>
     </div>
   );
 }

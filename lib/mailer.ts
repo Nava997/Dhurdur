@@ -24,8 +24,12 @@ export async function sendSalonEmail(to: string, subject: string, message: strin
   const emailPass = process.env.EMAIL_PASS;
   if (!emailUser || !emailPass) throw new Error('Email service not configured');
 
+  // EMAIL_HOST selects any SMTP provider (e.g. one with an EU data processing
+  // agreement); without it, Gmail is used as before.
+  const host = process.env.EMAIL_HOST;
+  const port = Number(process.env.EMAIL_PORT || 465);
   const transporter = nodemailer.createTransport({
-    service: 'gmail',
+    ...(host ? { host, port, secure: port === 465 } : { service: 'gmail' }),
     auth: { user: emailUser, pass: emailPass },
     tls: { rejectUnauthorized: true, minVersion: 'TLSv1.2' },
   });

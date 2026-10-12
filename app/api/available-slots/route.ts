@@ -3,7 +3,7 @@ import { adminDb } from "@/lib/firebaseAdmin";
 
 // Public, PII-free view of upcoming appointments — just enough to compute
 // slot availability client-side. Uses the Admin SDK (bypasses Firestore
-// rules) but deliberately returns only date/time/stylist/duration/status —
+// rules) but deliberately returns only date/time/stylist/duration/status/proposal —
 // never name, phone, notes, userId, or reference images.
 const ACTIVE_STATUSES = ["confirmed", "pending", "proposed", "blocked"];
 
@@ -30,6 +30,7 @@ export async function GET() {
       stylist: data.stylist,
       totalDurationMins: data.totalDurationMins || 60,
       status: data.status,
+      proposedDate: data.proposedDate || null,
       proposedTime: data.proposedTime || null,
     };
   });

@@ -1,7 +1,6 @@
 import './globals.css'
 import type { Metadata } from 'next'
 import { AppProvider } from '@/context/AppContext'
-import { CookieConsentProvider, CookieConsentBanner } from '@/components/CookieConsent'
 
 export const metadata: Metadata = {
   title: 'Dhurdur | Barbershop Schweinfurt',
@@ -16,12 +15,9 @@ export default function RootLayout({
   return (
     <html lang="de" className="scroll-smooth">
       <body>
-        <CookieConsentProvider>
-          <AppProvider>
-            {children}
-            <CookieConsentBanner />
-          </AppProvider>
-        </CookieConsentProvider>
+        <AppProvider>
+          {children}
+        </AppProvider>
       </body>
     </html>
   )
