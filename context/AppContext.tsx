@@ -476,16 +476,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   };
 
   // After clicking the link, the user returns straight to the booking page.
-  // That needs the site's domain on Firebase Auth's authorized list; if it
-  // isn't, send the plain link (Firebase's own confirmation page) instead.
+  // The link's domain must be on Firebase Auth's authorized list, or no e-mail
+  // is sent (and a retry is then rate-limited). Only the bare domain is listed,
+  // so drop "www."; durdur-sw.de redirects back to www.
   const sendVerification = async (user: User) => {
-    try {
-      await sendEmailVerification(user, { url: `${window.location.origin}/#booking` });
-    } catch (caught) {
-      const code = (caught as { code?: string }).code;
-      if (code !== 'auth/unauthorized-continue-uri' && code !== 'auth/invalid-continue-uri') throw caught;
-      await sendEmailVerification(user);
-    }
+    const origin = window.location.origin.replace('://www.', '://');
+    await sendEmailVerification(user, { url: `${origin}/#booking` });
   };
 
   const resendVerificationEmail = async () => {
