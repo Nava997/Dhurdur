@@ -1602,7 +1602,7 @@ function ClientAuthModal({ onClose, loginEmail, registerEmail, loginOAuth, reset
 // 6. BOOKING FORM (real slots + submission)
 // ==========================================
 function BookingForm({ servicesDB, stylistsDB }: { servicesDB: ServiceItem[]; stylistsDB: StylistItem[] }) {
-  const { currentUser, getAvailableSlots, addAppointment, t, lang } = useApp();
+  const { currentUser, getAvailableSlots, addAppointment, t, lang, emailVerified, resendVerificationEmail, refreshEmailVerified, addNotification } = useApp();
   const [service, setService] = useState('');
   const [stylist, setStylist] = useState('Any');
   const [date, setDate] = useState('');
@@ -1626,6 +1626,25 @@ function BookingForm({ servicesDB, stylistsDB }: { servicesDB: ServiceItem[]; st
     });
     setSubmitted(true);
   };
+
+  const checkVerified = async () => {
+    if (!(await refreshEmailVerified())) {
+      addNotification(t.booking?.verifyStillPending || "Your email address isn't confirmed yet.", 'info');
+    }
+  };
+
+  if (!emailVerified) {
+    return (
+      <div className="border border-zinc-800 p-10 text-center space-y-4">
+        <p className="text-xl font-serif">{t.booking?.verifyTitle || "Please confirm your email address"}</p>
+        <p className="text-zinc-400 text-sm">{t.booking?.verifyDesc || "We sent a confirmation link to your email address. Once you've clicked it, you can book."}</p>
+        <div className="flex flex-col sm:flex-row gap-3 justify-center">
+          <button onClick={checkVerified} className="gold-shine-btn text-black px-6 py-3 uppercase tracking-widest text-xs font-medium">{t.booking?.verifyDone || "I've confirmed it"}</button>
+          <button onClick={resendVerificationEmail} className="border border-zinc-700 hover:border-zinc-400 text-zinc-300 px-6 py-3 uppercase tracking-widest text-xs transition-colors">{t.booking?.verifyResend || "Resend link"}</button>
+        </div>
+      </div>
+    );
+  }
 
   if (submitted) {
     return (

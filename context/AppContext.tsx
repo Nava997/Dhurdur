@@ -4,7 +4,7 @@ import { auth, db, getGoogleProvider } from '../lib/firebase';
 import { fallbackTranslations, type TranslationData } from '../lib/translations';
 import { deleteSiteImage } from '../lib/uploadImage';
 export { fallbackTranslations };
-import { signInWithPopup, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged, sendPasswordResetEmail, EmailAuthProvider, reauthenticateWithCredential } from 'firebase/auth';
+import { signInWithPopup, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged, sendPasswordResetEmail, sendEmailVerification, EmailAuthProvider, reauthenticateWithCredential } from 'firebase/auth';
 import { doc, setDoc, collection, onSnapshot, addDoc, updateDoc, deleteDoc, getDoc, DocumentReference, query, where } from 'firebase/firestore';
 
 type Language = string;
@@ -52,6 +52,9 @@ export interface AppContextType {
   t: TranslationData[string];
   isAdminAuth: boolean;
   currentUser: UserProfile | null;
+  emailVerified: boolean;
+  resendVerificationEmail: () => Promise<void>;
+  refreshEmailVerified: () => Promise<boolean>;
   usersDB: UserProfile[]; clientNotesDB: Record<string, string>; updateUserNotes: (id: string, notes: string) => Promise<void>;
   loginOAuth: (provider: 'Google') => Promise<void>;
   loginEmail: (email: string, pass: string) => Promise<void>;
@@ -92,6 +95,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
   const [isAdminAuth, setIsAdminAuth] = useState(false);
+  const [emailVerified, setEmailVerified] = useState(false);
   const [usersDB, setUsersDB] = useState<UserProfile[]>([]);
   const [clientNotesDB, setClientNotesDB] = useState<Record<string, string>>({});
 
@@ -188,6 +192,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     let unsubUser: (() => void) | null = null;
 
     const unsubAuth = onAuthStateChanged(auth, async (user) => {
+      setEmailVerified(!!user?.emailVerified);
       if (user) {
         unsubUser = onSnapshot(doc(db, 'users', user.uid), (docSnap) => {
           if (docSnap.exists()) {
@@ -452,11 +457,41 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         // one-off "security update" password change meant for older accounts.
         id: cred.user.uid, name, email, phone: cleanPhone, haircutCount: 0, role: 'user', hasUpdatedPassword: true
       });
+      // Bookings require a verified address (see firestore.rules).
+      await sendEmailVerification(cred.user, verificationLink()).catch(() => {});
       setPageRouter('profile');
-      addNotification("Account created and verified successfully!", 'success');
+      addNotification(lang === 'de'
+        ? "Konto erstellt! Bitte bestätigen Sie Ihre E-Mail-Adresse über den Link, den wir Ihnen gesendet haben."
+        : "Account created! Please confirm your email address using the link we sent you.", 'success');
     } catch (caught) { const error = caught as { code?: string; message: string };
       addNotification(error.message, 'error');
     }
+  };
+
+  // After clicking the link, the user returns straight to the booking page.
+  const verificationLink = () => ({ url: `${window.location.origin}/#booking` });
+
+  const resendVerificationEmail = async () => {
+    if (!auth.currentUser) return;
+    try {
+      await sendEmailVerification(auth.currentUser, verificationLink());
+      addNotification(lang === 'de' ? "Bestätigungslink gesendet — bitte prüfen Sie Ihr Postfach." : "Verification link sent — please check your inbox.", 'success');
+    } catch (caught) { const error = caught as { code?: string; message: string };
+      addNotification(error.code === 'auth/too-many-requests'
+        ? (lang === 'de' ? "Bitte warten Sie einen Moment, bevor Sie einen neuen Link anfordern." : "Please wait a moment before requesting another link.")
+        : error.message, 'error');
+    }
+  };
+
+  // Picks up a verification done in another tab. The ID token is refreshed so
+  // Firestore rules see email_verified straight away.
+  const refreshEmailVerified = async () => {
+    const user = auth.currentUser;
+    if (!user) return false;
+    await user.reload();
+    if (user.emailVerified) await user.getIdToken(true);
+    setEmailVerified(user.emailVerified);
+    return user.emailVerified;
   };
 
   const resetPassword = async (email: string) => {
@@ -753,7 +788,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   return (
     <AppContext.Provider value={{
       lang, changeLanguage, isTranslatingUI, page, setPage: setPageRouter, t,
-      isAdminAuth, currentUser, usersDB, clientNotesDB, updateUserNotes, loginOAuth, loginEmail, registerEmail, resetPassword, requestPasswordOtp, updateUserPassword, logout,
+      isAdminAuth, currentUser, emailVerified, resendVerificationEmail, refreshEmailVerified, usersDB, clientNotesDB, updateUserNotes, loginOAuth, loginEmail, registerEmail, resetPassword, requestPasswordOtp, updateUserPassword, logout,
       servicesDB, addService, deleteService, productsDB, addProduct, deleteProduct,
       appointments, addAppointment, addAdminAppointment, updateAppointmentStatus, cancelOwnAppointment, acceptProposal, notifications, addNotification, getAvailableSlots,
       waitlist, removeFromWaitlist, notifyWaitlist,

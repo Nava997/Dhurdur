@@ -109,7 +109,8 @@ export async function POST(req: NextRequest) {
     const { user, admin } = emailsFor(event, outcome.appt);
     const adminEmail = process.env.NEXT_PUBLIC_ADMIN_EMAIL;
     const sends = [
-      decoded.email ? sendSalonEmail(decoded.email, user[0], user[1]) : null,
+      // Only to an address the customer has proven they own.
+      decoded.email && decoded.email_verified ? sendSalonEmail(decoded.email, user[0], user[1]) : null,
       adminEmail ? sendSalonEmail(adminEmail, admin[0], admin[1]) : null,
     ].filter(Boolean);
     const results = await Promise.allSettled(sends);

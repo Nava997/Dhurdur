@@ -152,6 +152,10 @@ test('booking fields must be well-formed', async () => {
   await assertFails(addDoc(collection(alice(), 'appointments'), validBooking('alice', { totalDurationMins: 100000 })));
   await assertFails(addDoc(collection(alice(), 'appointments'), validBooking('alice', { loyaltyCounted: true })));
 });
+test('customer with an unverified email cannot book', async () => {
+  const db = env.authenticatedContext('newbie', { email: 'n@example.com', email_verified: false }).firestore();
+  await assertFails(addDoc(collection(db, 'appointments'), validBooking('newbie')));
+});
 test('guest cannot create bookings', async () => {
   await assertFails(addDoc(collection(guest(), 'appointments'), validBooking('alice')));
 });
