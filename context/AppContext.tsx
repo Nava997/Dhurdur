@@ -4,7 +4,7 @@ import { auth, db, getGoogleProvider } from '../lib/firebase';
 import { fallbackTranslations, type TranslationData } from '../lib/translations';
 import { deleteSiteImage } from '../lib/uploadImage';
 export { fallbackTranslations };
-import { signInWithPopup, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged, sendPasswordResetEmail, sendEmailVerification, EmailAuthProvider, reauthenticateWithCredential } from 'firebase/auth';
+import { signInWithPopup, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged, sendPasswordResetEmail, sendEmailVerification, EmailAuthProvider, reauthenticateWithCredential, type User } from 'firebase/auth';
 import { doc, setDoc, collection, onSnapshot, addDoc, updateDoc, deleteDoc, getDoc, DocumentReference, query, where } from 'firebase/firestore';
 
 type Language = string;
@@ -457,25 +457,42 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         // one-off "security update" password change meant for older accounts.
         id: cred.user.uid, name, email, phone: cleanPhone, haircutCount: 0, role: 'user', hasUpdatedPassword: true
       });
-      // Bookings require a verified address (see firestore.rules).
-      await sendEmailVerification(cred.user, verificationLink()).catch(() => {});
       setPageRouter('profile');
-      addNotification(lang === 'de'
-        ? "Konto erstellt! Bitte bestätigen Sie Ihre E-Mail-Adresse über den Link, den wir Ihnen gesendet haben."
-        : "Account created! Please confirm your email address using the link we sent you.", 'success');
+      // Bookings require a verified address (see firestore.rules).
+      try {
+        await sendVerification(cred.user);
+        addNotification(lang === 'de'
+          ? "Konto erstellt! Bitte bestätigen Sie Ihre E-Mail-Adresse über den Link, den wir Ihnen gesendet haben (ggf. im Spam-Ordner)."
+          : "Account created! Please confirm your email address using the link we sent you (check your spam folder).", 'success');
+      } catch (caught) {
+        console.error('Verification e-mail failed:', caught);
+        addNotification(lang === 'de'
+          ? "Konto erstellt, aber der Bestätigungslink konnte nicht gesendet werden. Bitte auf der Buchungsseite erneut anfordern."
+          : "Account created, but the confirmation link couldn't be sent. Please request it again on the booking page.", 'error');
+      }
     } catch (caught) { const error = caught as { code?: string; message: string };
       addNotification(error.message, 'error');
     }
   };
 
   // After clicking the link, the user returns straight to the booking page.
-  const verificationLink = () => ({ url: `${window.location.origin}/#booking` });
+  // That needs the site's domain on Firebase Auth's authorized list; if it
+  // isn't, send the plain link (Firebase's own confirmation page) instead.
+  const sendVerification = async (user: User) => {
+    try {
+      await sendEmailVerification(user, { url: `${window.location.origin}/#booking` });
+    } catch (caught) {
+      const code = (caught as { code?: string }).code;
+      if (code !== 'auth/unauthorized-continue-uri' && code !== 'auth/invalid-continue-uri') throw caught;
+      await sendEmailVerification(user);
+    }
+  };
 
   const resendVerificationEmail = async () => {
     if (!auth.currentUser) return;
     try {
-      await sendEmailVerification(auth.currentUser, verificationLink());
-      addNotification(lang === 'de' ? "Bestätigungslink gesendet — bitte prüfen Sie Ihr Postfach." : "Verification link sent — please check your inbox.", 'success');
+      await sendVerification(auth.currentUser);
+      addNotification(lang === 'de' ? "Bestätigungslink gesendet — bitte prüfen Sie Ihr Postfach und den Spam-Ordner." : "Verification link sent — please check your inbox and spam folder.", 'success');
     } catch (caught) { const error = caught as { code?: string; message: string };
       addNotification(error.code === 'auth/too-many-requests'
         ? (lang === 'de' ? "Bitte warten Sie einen Moment, bevor Sie einen neuen Link anfordern." : "Please wait a moment before requesting another link.")
